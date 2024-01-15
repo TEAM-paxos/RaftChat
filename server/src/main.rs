@@ -14,7 +14,7 @@ struct Msg {
     text: String,
 }
 
-const MY_ADDR: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8080);
+const MY_ADDR: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 50000);
 
 fn serialize_msg(msg: Msg) -> AlignedVec {
     let mut serializer: AllocSerializer<0> = AllocSerializer::default();
