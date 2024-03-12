@@ -1,12 +1,10 @@
 [package]
-name = "server"
+name = "cli-chat"
 version = "0.1.0"
 edition = "2021"
-default-run = "server"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-byteorder = "1.5"
-rkyv = { version = "0.7", features = ["validation"] }
-tokio = { version = "1", features = ["full"] }
+crossterm = "0.27.0"
+ratatui = "0.26.1"
