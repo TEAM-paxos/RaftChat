@@ -7,4 +7,11 @@ edition = "2021"
 
 [dependencies]
 crossterm = "0.27.0"
+local-ip-address = "0.6.1"
 ratatui = "0.26.1"
+tokio = { version = "1", features = ["full"] }
+hyper = { version = "1", features = ["full"] }
+http-body-util = "0.1"
+hyper-util = { version = "0.1", features = ["full"] }
+byteorder = "1.5"
+rkyv = { version = "0.7", features = ["validation"] }
