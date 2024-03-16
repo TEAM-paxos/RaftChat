@@ -1,79 +1,65 @@
+use hyper::Error;
+use std::{env, io::{self, stdin,Write}};
+mod crdt_chat;
+pub mod generated;
 
-mod CrdtChat;
+async fn looping(){
+    let ip = "0.0.0.0";
+    let mut port: String = String::new();
+    print!("Put opponent's port: ");
+    io::stdout().flush().unwrap();
 
-use crossterm::{
-    event::{self, KeyCode, KeyEventKind},
-    terminal::{
-        disable_raw_mode, enable_raw_mode, EnterAlternateScreen,
-        LeaveAlternateScreen,
-    },
-    ExecutableCommand,
-};
-use ratatui::{
-    prelude::{CrosstermBackend, Stylize, Terminal},
-    widgets::Paragraph,
-};
-use hyper::body::Buf;
-use http_body_util::{BodyExt, Empty, Full};
-use hyper::Request;
-use hyper::body::Bytes;
-use hyper_util::rt::TokioIo;
-use tokio::net::TcpStream;
+    //stdin().read_to_string(&mut buf).await;
+    stdin().read_line(&mut port).unwrap();
+
+    let port: u16 = port.trim().parse().unwrap();
+
+    loop {
+        let mut buf: String = String::new();
+        stdin().read_line(&mut buf).unwrap();
+
+        let send = tokio::spawn(
+            async move{
+                crdt_chat::send_msg(ip,port,  buf).await.unwrap();
+            }
+        );
+
+        send.await.unwrap();
+    }   
+}
 
 #[tokio::main]
-async fn main() -> Result<(),Box<dyn std::error::Error + Send + Sync>> {
-    // This is where we will setup our HTTP client requests.
-    // Parse our URL...
-    let url = "http://127.0.0.1:3000/echo".parse::<hyper::Uri>()?;
+async fn main() -> Result<(), Error> {
+    let port: u16 = env::args().nth(1).unwrap().trim().parse().unwrap();
+    //let port: u16 = 3000;
 
-    // Get the host and the port
-    let host = url.host().expect("uri has no host");
-    let port = url.port_u16().unwrap_or(80);
+    let receiver = tokio::spawn(
+        crdt_chat::run_receiver(port)
+    );
 
-    let address = format!("{}:{}", host, port);
+    let looper = tokio::spawn(
+        looping()    
+    );
 
-    // Open a TCP connection to the remote host
-    let stream = TcpStream::connect(address).await?;
-
-    // Use an adapter to access something implementing `tokio::io` traits as if they implement
-    // `hyper::rt` IO traits.
-    let io = TokioIo::new(stream);
-
-    // Create the Hyper client
-    let (mut sender, conn) = hyper::client::conn::http1::handshake(io).await?;
-
-    // Spawn a task to poll the connection, driving the HTTP state
-    tokio::task::spawn(async move {
-        if let Err(err) = conn.await {
-            println!("Connection failed: {:?}", err);
-        }
-    });
-
-    //make msg
-    let temp = CrdtChat::serialize::Msg{ 
-        From: "from".to_string(), 
-        To: "to".to_string(),
-        Content: "hi".to_string() };
-    
-    let binding = CrdtChat::serialize::serialize_msg(&temp);
-    let mut bytes = binding.as_slice();
-
-    // The authority of our URL will be the hostname of the httpbin remote
-    let authority = url.authority().unwrap().clone();
-    println!("{:?}", bytes);
-    // Create an HTTP request with an empty body and a HOST header
-    let req = Request::builder()
-        .uri(url)
-        .method("POST")
-        .header(hyper::header::HOST, authority.as_str())
-        .body(Full::new(bytes.copy_to_bytes(bytes.len())))?;
-
-    // Await the response...
-    let mut res = sender.send_request(req).await?;
-
-    println!("Response status: {}", res.status());
+    let _out = receiver.await.unwrap();
+    let _out2 = looper.await.unwrap();
     Ok(())
 }
+
+// use std::io::{stdout, Result};
+// use crossterm::{
+//     event::{self, KeyCode, KeyEventKind},
+//     terminal::{
+//         disable_raw_mode, enable_raw_mode, EnterAlternateScreen,
+//         LeaveAlternateScreen,
+//     },
+//     ExecutableCommand,
+// };
+
+// use ratatui::{
+//     prelude::{CrosstermBackend, Stylize, Terminal},
+//     widgets::Paragraph,
+// };
 
 // fn main() -> Result<()> {
 //     stdout().execute(EnterAlternateScreen)?;
@@ -107,4 +93,14 @@ async fn main() -> Result<(),Box<dyn std::error::Error + Send + Sync>> {
 //     stdout().execute(LeaveAlternateScreen)?;
 //     disable_raw_mode()?;
 //     Ok(())
+// }
+
+// #[cfg(test)] 
+// mod tests{
+
+//     #[test]    
+    
+//     fn it_works(){
+       
+//     }
 // }

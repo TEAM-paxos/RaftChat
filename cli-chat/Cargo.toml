@@ -13,5 +13,8 @@ tokio = { version = "1", features = ["full"] }
 hyper = { version = "1", features = ["full"] }
 http-body-util = "0.1"
 hyper-util = { version = "0.1", features = ["full"] }
-byteorder = "1.5"
-rkyv = { version = "0.7", features = ["validation"] }
+bebop = "3.0.4"
+
+
+[build-dependencies]
+bebop-tools = "3.0.4"

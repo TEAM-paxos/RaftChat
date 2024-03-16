@@ -1,0 +1,5 @@
+struct Message {
+  string from;
+  string to;
+  string msg;
+}
