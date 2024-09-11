@@ -1,11 +1,10 @@
 use std::time;
 
+#[derive(Debug, Clone, Default)]
 struct Msg{
-    Id : u64,
+    id : String,
     data : String,
-    time : std::time;
-}
-
-impl Msg{
+    time : std::time,
+    cur_seq : u64,
     
 }

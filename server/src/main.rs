@@ -1,25 +1,65 @@
-use std::io::stdin;
-use std::net::TcpListener;
-use std::thread::spawn;
-use tungstenite::accept;
+use tokio::net::{TcpListener, TcpStream};
+use tokio_tungstenite::{
+    WebSocketStream,
+    tungstenite::Message,
+};
+use futures_util::{stream::{SplitSink, SplitStream}, SinkExt, StreamExt};
+use tokio::io::{self, AsyncBufReadExt, BufReader};
 
-/// A WebSocket echo server
-fn main () {
-    let server = TcpListener::bind("127.0.0.1:9001").unwrap();
-    for stream in server.incoming() {
-        spawn (move || {
-            let mut websocket = accept(stream.unwrap()).unwrap();
-            websocket.send(tungstenite::Message::Text("Hello from server!".into())).unwrap();
-            loop {
-                let msg = websocket.read().unwrap();
+async fn handle_client(stream: TcpStream, addr: std::net::SocketAddr) {
 
-                print!("> {}\n", msg);
+    let ws_steam = tokio_tungstenite::accept_async(stream)
+                                                .await
+                                                .expect("Error during the websocket handshake occurred");
 
-                let mut buffer = String::new();
-                stdin().read_line(&mut buffer).unwrap();
-                
-                websocket.send(tungstenite::Message::Text(buffer)).unwrap();
-            }
+    let(mut write_stream, mut read_stream) = ws_steam.split();      
+
+    write_stream.send(Message::Text("Connected to server!".into())).await.unwrap();
+
+    let h1 = tokio::spawn(async move {
+        read_task(read_stream).await;
+    });
+
+    let h2 = tokio::spawn(async move {
+        write_task(write_stream).await;
+    });
+    
+    h1.await.unwrap();
+    h2.await.unwrap();
+}
+
+async fn read_task(mut read_stream: SplitStream<WebSocketStream<TcpStream>> ) {
+    println!("Reading messages from client");
+    while let Some(msg) = read_stream.next().await {
+        let msg = msg.unwrap();
+        print!("> {}\n", msg);
+    }
+}
+
+async fn write_task(mut write_stream: SplitSink<WebSocketStream<TcpStream>, Message>){
+    loop {
+        let stdin = io::stdin();  // standard input
+        let mut reader = BufReader::new(stdin);  // buffer the input
+        let mut line = String::new();
+
+        line.clear();
+        let bytes_size = reader.read_line(&mut line).await.unwrap();
+        if bytes_size == 0 {
+            break; // EOF
+        }
+        
+        write_stream.send(Message::Text(line)).await.unwrap();
+    }
+}
+
+#[tokio::main]
+async fn main () {
+    let server = TcpListener::bind("127.0.0.1:9001").await;
+    let listener = server.expect("failed to bind");
+
+    while let Ok((stream, addr)) = listener.accept().await {
+        tokio::spawn (async move{
+            handle_client(stream, addr).await;
         });
     }
 }

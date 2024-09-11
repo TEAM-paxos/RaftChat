@@ -9,4 +9,5 @@ edition = "2021"
 byteorder = "1.5"
 rkyv = { version = "0.7", features = ["validation"] }
 tokio = { version = "1", features = ["full"] }
-tungstenite = "0.24.0"
+tokio-tungstenite = "0.23.1"
+futures-util = "0.3"
