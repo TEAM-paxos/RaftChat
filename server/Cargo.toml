@@ -6,6 +6,11 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+raft = { path = "../raft" }
 byteorder = "1.5"
 rkyv = { version = "0.7", features = ["validation"] }
 tokio = { version = "1", features = ["full"] }
+tokio-tungstenite = "0.23.1"
+futures-util = "0.3"
+axum = "0.7.5"
+tower-http = { version = "0.5.2", features = ["fs"] }

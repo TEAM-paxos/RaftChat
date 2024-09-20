@@ -1,69 +1,39 @@
-use byteorder::{ByteOrder, LittleEndian};
-use rkyv::ser::{serializers::AllocSerializer, Serializer};
-use rkyv::util::AlignedVec;
-use rkyv::{Archive, Deserialize, Serialize};
-use std::env;
-use std::io::Read;
-use std::io::Write;
-use std::net::*;
+use tokio::net::TcpListener;
+use axum::{routing::get, Router};
+use std::net::SocketAddr;
+use tower_http::services::ServeDir;
+use raft;
 
-#[derive(Archive, Deserialize, Serialize, Debug)]
-#[archive(check_bytes)]
-#[archive_attr(derive(Debug))]
-struct Msg {
-    text: String,
-}
+pub mod events;
+pub mod axum_handler;
 
-const MY_ADDR: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 50000);
 
-fn serialize_msg(msg: Msg) -> AlignedVec {
-    let mut serializer: AllocSerializer<0> = AllocSerializer::default();
-    serializer.write(&[0; 8]).unwrap();
-    serializer.serialize_value(&msg).unwrap();
-    let mut bytes: AlignedVec = serializer.into_serializer().into_inner();
-    let len = bytes.len() as u64;
-    LittleEndian::write_u64(bytes.as_mut_slice(), len);
-    bytes
-}
+#[tokio::main]
+async fn main () {
+    // raft server
+    let (commit_rx, propose_tx) = raft::Raft::new(1, vec![2, 3]);
 
-fn when_leader() {
-    println!("leader");
+    // axum server
+    let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
+    let app = Router::new()
+                            .route("/", get(axum_handler::handler))
+                            .nest_service("/static", ServeDir::new("../client/static"));
 
-    let listener = TcpListener::bind(MY_ADDR).unwrap();
-    let (mut stream, addr) = listener.accept().unwrap();
-    println!("new follower: {addr:?}");
+    let listener = TcpListener::bind(&addr).await.unwrap();
 
-    let msg = Msg {
-        text: "Hello!".to_string(),
-    };
-    println!("MSG : {msg:?}");
-    let bytes = serialize_msg(msg);
-    println!("BYTES : {bytes:?}");
-    stream.write_all(bytes.as_slice()).unwrap();
-}
+    tokio::spawn(async move {
+        println!("AXUM listening on {}", addr);
+        axum::serve(listener, app).await.unwrap();
+    });
 
-fn when_follower() {
-    println!("follower");
+    // websocket server
+    let server = TcpListener::bind("127.0.0.1:9001").await;
+    let listener = server.expect("failed to bind");
 
-    let mut stream = TcpStream::connect(MY_ADDR).unwrap();
-    println!("connected!");
-
-    let mut buf: [u8; 1024] = [0; 1024];
-    stream.read_exact(&mut buf[..8]).unwrap();
-    let len = LittleEndian::read_u64(&buf) as usize;
-    stream.read_exact(&mut buf[8..len]).unwrap();
-    let archived = rkyv::check_archived_root::<Msg>(&buf[..len]).unwrap();
-    // let value : Msg = archived.deserialize(&mut rkyv::Infallible).unwrap();
-    let bytes = &buf[..len];
-    println!("BYTES : {bytes:?}");
-    println!("{archived:?}");
-}
-
-fn main() {
-    let role: String = env::args().nth(1).unwrap();
-    match role.as_str() {
-        "leader" => when_leader(),
-        "follower" => when_follower(),
-        _ => panic!(),
+    while let Ok((stream, addr)) = listener.accept().await {
+        tokio::spawn (async move{
+            events::handler::handle_client(stream, addr).await;
+        });
     }
 }
+
