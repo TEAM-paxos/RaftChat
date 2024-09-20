@@ -17,7 +17,7 @@ async fn main () {
     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
     let app = Router::new()
                             .route("/", get(axum_handler::handler))
-                            .nest_service("/static", ServeDir::new("../../client/static"));
+                            .nest_service("/static", ServeDir::new("../client/static"));
 
     let listener = TcpListener::bind(&addr).await.unwrap();
 

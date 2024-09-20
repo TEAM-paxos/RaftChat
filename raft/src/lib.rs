@@ -28,7 +28,6 @@ pub struct Commit{
 
 
 impl Raft {
-
     // return a new commit channel
     pub fn new(id: u64, peers: Vec<u64>) ->  (mpsc::Receiver<Commit>, mpsc::Sender<String>) {
         let (commit_tx, commit_rx) = mpsc::channel(15);
