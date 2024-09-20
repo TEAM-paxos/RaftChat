@@ -5,6 +5,5 @@ struct Msg{
     id : String,
     data : String,
     time : std::time,
-    cur_seq : u64,
-    
+    cur_seq : u64,   
 }
