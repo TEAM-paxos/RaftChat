@@ -1,40 +1,69 @@
-use tokio::net::TcpStream;
+use tokio::net::{unix::pipe::Sender, TcpStream};
 use tokio_tungstenite::{
     WebSocketStream,
     tungstenite::Message,
 };
 use futures_util::{stream::{SplitSink, SplitStream}, SinkExt, StreamExt};
 use tokio::io::{self, AsyncBufReadExt, BufReader};
+use std::process;
+use crate::data_model::msg::ClientMsg;
 
-pub async fn handle_client(stream: TcpStream, addr: std::net::SocketAddr) {
+type Stream = SplitSink<WebSocketStream<TcpStream>, Message>;
 
+pub async fn client_handler(stream: TcpStream, addr: std::net::SocketAddr,
+                                 writer_tx: tokio::sync::mpsc::Sender<ClientMsg>, 
+                                 publisher_tx: tokio::sync::mpsc::Sender<Stream>) {
     println!("Incoming WebSocket connection from: {}", addr);
 
     let ws_steam = tokio_tungstenite::accept_async(stream)
                                                 .await
                                                 .expect("Error during the websocket handshake occurred");
-
     let(mut write_stream, read_stream) = ws_steam.split();      
 
     write_stream.send(Message::Text("Connected to server!".into())).await.unwrap();
 
     let h1 = tokio::spawn(async move {
-        read_task(read_stream).await;
+        read_task(read_stream, writer_tx).await;
     });
 
-    let h2 = tokio::spawn(async move {
-        write_task(write_stream).await;
-    });
+    println!("Sending write_stream to publisher");
+    publisher_tx.send(write_stream).await.unwrap();
+    // let h2 = tokio::spawn(async move {
+    //     write_task(write_stream).await;
+    // });
     
     h1.await.unwrap();
-    h2.await.unwrap();
+    // h2.await.unwrap();
 }
 
-async fn read_task(mut read_stream: SplitStream<WebSocketStream<TcpStream>> ) {
-    println!("Reading messages from client");
+async fn read_task(mut read_stream: SplitStream<WebSocketStream<TcpStream>>, 
+                   writer_tx: tokio::sync::mpsc::Sender<ClientMsg>) {
+    println!("read_task started");
+
     while let Some(msg) = read_stream.next().await {
         let msg = msg.unwrap();
-        print!("> {}\n", msg);
+        match msg {
+            Message::Text(text) => {
+                let client_msg: ClientMsg = serde_json::from_str(&text).unwrap_or_else(|err|{
+                    println!("{}", text);
+                    eprintln!("->Error: {}", err);
+                    process::exit(1);
+                });
+
+                writer_tx.send(client_msg).await.unwrap();
+            },
+            Message::Binary(data) => {
+                let client_msg: ClientMsg = serde_json::from_slice(&data).unwrap();
+                writer_tx.send(client_msg).await.unwrap();
+            },
+            Message::Close(_) => {
+                println!("Client disconnected");
+                break;
+            },
+            _ => {
+                println!("Unsupported message type");
+            }
+        }
     }
 }
 

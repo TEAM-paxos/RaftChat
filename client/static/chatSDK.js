@@ -31,7 +31,20 @@ window.onload = function(){
         appendMessage(PERSON_NAME, PERSON_IMG, "right", msgText);
         msgerInput.value = "";
 
-        socket.send(msgText);
+        const currentTimeInSeconds = Math.floor(Date.now() / 1000);
+        // JavaScript 객체 생성
+        const clientMsg = {
+          uid: "highcloud",           // String으로 설정
+          data: msgText,            // String으로 설정
+          time: currentTimeInSeconds,  // Rust에서 UNIX 타임스탬프로 변환된 값
+          cur_seq: 1,              // u64에 해당하는 정수
+          timestamp: {
+            uid: "highcloud",    // TimeStamp 구조체의 uid
+            seq: 2                // TimeStamp 구조체의 seq
+          }
+        };
+
+        socket.send(JSON.stringify(clientMsg));
       
         // botResponse();
       });
