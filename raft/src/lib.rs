@@ -2,26 +2,24 @@ use std::thread::sleep;
 use std::time::Duration;
 use tokio::sync::mpsc;
 
-mod wal;
 mod transport;
+mod wal;
 
-pub struct Raft {
-    
-}
+pub struct Raft {}
 
 struct RaftConfig {
     id: u64,
     peers: Vec<u64>,
 }
 
-struct RaftNode{
+struct RaftNode {
     id: u64,
     config: RaftConfig,
     commit_tx: mpsc::Sender<Commit>,
     propose_rx: mpsc::Receiver<Vec<u8>>,
 }
 
-pub struct Commit{
+pub struct Commit {
     index: u64,
     data: Vec<u8>,
 }
@@ -32,10 +30,9 @@ impl Commit {
     }
 }
 
-
 impl Raft {
     // return a new commit channel
-    pub fn new(id: u64, peers: Vec<u64>) ->  (mpsc::Receiver<Commit>, mpsc::Sender<Vec<u8>>) {
+    pub fn new(id: u64, peers: Vec<u64>) -> (mpsc::Receiver<Commit>, mpsc::Sender<Vec<u8>>) {
         let (commit_tx, commit_rx) = mpsc::channel(15);
         let (propose_tx, propose_rx) = mpsc::channel(15);
 
@@ -58,7 +55,7 @@ impl Raft {
 }
 
 impl RaftNode {
-    pub async  fn start(&mut self) {
+    pub async fn start(&mut self) {
         println!("Starting Raft server with id: {}", self.id);
 
         let mut idx = 0;
@@ -67,7 +64,7 @@ impl RaftNode {
         // echo back the data
         while let Some(data) = self.propose_rx.recv().await {
             println!("[RAFT] Received data: {:?}", data);
-            
+
             sleep(Duration::from_secs(1));
 
             let value = Commit {
@@ -81,6 +78,5 @@ impl RaftNode {
 
         // [TODO] Implement WAL and Transport
         // setup the WAL and Transport
-
     }
 }

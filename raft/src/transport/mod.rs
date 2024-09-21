@@ -1,5 +1,3 @@
 // network layer
 
-struct Transport{
-    
-}
+struct Transport {}
