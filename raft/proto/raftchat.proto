@@ -1,0 +1,54 @@
+syntax = "proto3";
+package raftchat;
+
+service RaftChat {
+  rpc AppendEntries(AppendEntriesArgs) returns (AppendEntriesRes);
+  rpc RequestVote(RequestVoteArgs) returns (RequestVoteRes);
+  rpc RequestAppend(RequestAppendArgs) returns (RequestAppendRes);
+}
+
+message Command {
+  uint64 client_id = 1;
+  uint64 message_id = 2;
+  bytes data = 3;
+}
+
+message Entry {
+  uint64 term = 1;
+  Command command = 2;
+}
+
+message Freshness {
+  // invariant : length = 0 -> lastTerm = 0
+  uint64 length = 1;   // length of log
+  uint64 lastTerm = 2; // term of the last log entry. 0 for the empty log
+}
+
+message AppendEntriesArgs {
+  uint64 term = 1;
+  Freshness freshness = 2;
+  repeated Entry entries = 3;
+  uint64 committed_length = 4;
+}
+
+message AppendEntriesRes {
+  uint64 term = 1;
+  bool success = 2;
+}
+
+message RequestVoteArgs {
+  uint64 term = 1;
+  Freshness freshness = 2;
+}
+
+message RequestVoteRes {
+  uint64 term = 1;
+  bool vote_granted = 2;
+}
+
+message RequestAppendArgs {
+  Command command = 1;
+}
+
+message RequestAppendRes {
+}
