@@ -1,7 +1,7 @@
 use crate::data_model::msg::ClientMsg;
+use database::{RequestLog, Commit};
 use futures_util::stream::SplitSink;
 use futures_util::SinkExt;
-use raft::Commit;
 use std::sync::{Arc, Mutex};
 use tokio::net::TcpStream;
 use tokio::sync::mpsc::Receiver;
@@ -78,7 +78,7 @@ impl Writer {
     pub async fn start(
         &self,
         mut writer_rx: Receiver<ClientMsg>,
-        raft_tx: tokio::sync::mpsc::Sender<Vec<u8>>,
+        raft_tx: tokio::sync::mpsc::Sender<RequestLog>,
     ) {
         println!("Writer started");
 
@@ -111,7 +111,12 @@ impl Writer {
                         for msg in local_buffer.iter() {
                             println!("Sending to Raft: {:?}", msg.get_data());
                             raft_tx
-                                .send(bincode::serialize(msg).unwrap())
+                                .send(
+                                    RequestLog::new(
+                                        msg.get_uid().to_string(),
+                                            msg.get_timestamp() , 
+                                        bincode::serialize(msg).unwrap())
+                                )
                                 .await
                                 .unwrap();
                         }
@@ -141,7 +146,13 @@ impl Writer {
                         for msg in local_buffer.iter() {
                             println!("[Timer] Sending to Raft: {:?}", msg.get_data());
                             raft_tx
-                                .send(bincode::serialize(msg).unwrap())
+                                .send(
+                                    RequestLog::new(
+                                        msg.get_uid().to_string(),
+                                            msg.get_timestamp() , 
+                                        bincode::serialize(msg).unwrap())
+                                
+                                )
                                 .await
                                 .unwrap();
                         }

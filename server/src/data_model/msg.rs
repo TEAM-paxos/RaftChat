@@ -1,9 +1,6 @@
 use chrono::{serde::ts_seconds, DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-// this is a right way to import a module from the same crate?
-use crate::data_model::time_stamp::TimeStamp;
-
 #[derive(Serialize, Deserialize, Clone)]
 pub struct ClientMsg {
     uid: String,
@@ -13,7 +10,7 @@ pub struct ClientMsg {
     // commited index that client has received
     cur_seq: u64,
     // timestamp of the message when it was sent
-    timestamp: TimeStamp,
+    timestamp: u64,
 }
 
 #[derive(Serialize)]
@@ -29,4 +26,14 @@ impl ClientMsg {
     pub fn get_data(&self) -> String {
         self.data.clone()
     }
+    pub fn get_time(&self) -> DateTime<Utc> {
+        self.time.clone()
+    }
+    pub fn get_cur_seq(&self) -> u64 {
+        self.cur_seq
+    }
+    pub fn get_timestamp(&self) -> u64 {
+        self.timestamp
+    }
+
 }

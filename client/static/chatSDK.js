@@ -38,10 +38,7 @@ window.onload = function(){
           data: msgText,            // String으로 설정
           time: currentTimeInSeconds,  // Rust에서 UNIX 타임스탬프로 변환된 값
           cur_seq: 1,              // u64에 해당하는 정수
-          timestamp: {
-            uid: "highcloud",    // TimeStamp 구조체의 uid
-            seq: 2                // TimeStamp 구조체의 seq
-          }
+          timestamp: 1,
         };
 
         socket.send(JSON.stringify(clientMsg));

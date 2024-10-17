@@ -4,8 +4,7 @@ use futures_util::{
     SinkExt, StreamExt,
 };
 use std::process;
-use tokio::io::{self, AsyncBufReadExt, BufReader};
-use tokio::net::{unix::pipe::Sender, TcpStream};
+use tokio::net::TcpStream;
 use tokio_tungstenite::{tungstenite::Message, WebSocketStream};
 
 type Stream = SplitSink<WebSocketStream<TcpStream>, Message>;
@@ -34,12 +33,8 @@ pub async fn client_handler(
 
     println!("Sending write_stream to publisher");
     publisher_tx.send(write_stream).await.unwrap();
-    // let h2 = tokio::spawn(async move {
-    //     write_task(write_stream).await;
-    // });
 
     h1.await.unwrap();
-    // h2.await.unwrap();
 }
 
 async fn read_task(
@@ -72,21 +67,5 @@ async fn read_task(
                 println!("Unsupported message type");
             }
         }
-    }
-}
-
-async fn write_task(mut write_stream: SplitSink<WebSocketStream<TcpStream>, Message>) {
-    loop {
-        let stdin = io::stdin(); // standard input
-        let mut reader = BufReader::new(stdin); // buffer the input
-        let mut line = String::new();
-
-        line.clear();
-        let bytes_size = reader.read_line(&mut line).await.unwrap();
-        if bytes_size == 0 {
-            break; // EOF
-        }
-
-        write_stream.send(Message::Text(line)).await.unwrap();
     }
 }
