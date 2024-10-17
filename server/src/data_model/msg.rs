@@ -35,5 +35,4 @@ impl ClientMsg {
     pub fn get_timestamp(&self) -> u64 {
         self.timestamp
     }
-
 }

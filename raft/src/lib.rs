@@ -1,7 +1,7 @@
+use database::{Commit, DataBase, RequestLog};
 use std::thread::sleep;
 use std::time::Duration;
 use tokio::sync::mpsc;
-use database::{Commit, DataBase, RequestLog};
 
 mod transport;
 mod wal;
@@ -20,10 +20,13 @@ struct RaftNode {
     propose_rx: mpsc::Receiver<RequestLog>,
 }
 
-
 impl DataBase for Raft {
     // return a new commit channel
-    fn make_channel(&self, id: u64, peers: Vec<u64>) -> (mpsc::Receiver<Commit>, mpsc::Sender<RequestLog>) {
+    fn make_channel(
+        &self,
+        id: u64,
+        peers: Vec<u64>,
+    ) -> (mpsc::Receiver<Commit>, mpsc::Sender<RequestLog>) {
         let (commit_tx, commit_rx) = mpsc::channel(15);
         let (propose_tx, propose_rx) = mpsc::channel(15);
 

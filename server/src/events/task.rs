@@ -1,5 +1,5 @@
 use crate::data_model::msg::ClientMsg;
-use database::{RequestLog, Commit};
+use database::{Commit, RequestLog};
 use futures_util::stream::SplitSink;
 use futures_util::SinkExt;
 use std::sync::{Arc, Mutex};
@@ -111,12 +111,11 @@ impl Writer {
                         for msg in local_buffer.iter() {
                             println!("Sending to Raft: {:?}", msg.get_data());
                             raft_tx
-                                .send(
-                                    RequestLog::new(
-                                        msg.get_uid().to_string(),
-                                            msg.get_timestamp() , 
-                                        bincode::serialize(msg).unwrap())
-                                )
+                                .send(RequestLog::new(
+                                    msg.get_uid().to_string(),
+                                    msg.get_timestamp(),
+                                    bincode::serialize(msg).unwrap(),
+                                ))
                                 .await
                                 .unwrap();
                         }
@@ -146,13 +145,11 @@ impl Writer {
                         for msg in local_buffer.iter() {
                             println!("[Timer] Sending to Raft: {:?}", msg.get_data());
                             raft_tx
-                                .send(
-                                    RequestLog::new(
-                                        msg.get_uid().to_string(),
-                                            msg.get_timestamp() , 
-                                        bincode::serialize(msg).unwrap())
-                                
-                                )
+                                .send(RequestLog::new(
+                                    msg.get_uid().to_string(),
+                                    msg.get_timestamp(),
+                                    bincode::serialize(msg).unwrap(),
+                                ))
                                 .await
                                 .unwrap();
                         }
