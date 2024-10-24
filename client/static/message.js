@@ -49,7 +49,7 @@ export class Msg {
         this.#id = id;
         this.#userId = userId;
         this.#content = content;
-        this.#time = Math.floor(Date.now() / 1000);
+        this.#time = new Date().toISOString();
         this.#timeStamp = timeStamp;
     }
 

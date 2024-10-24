@@ -75,7 +75,7 @@ export class Engine{
         if (!msgText) return;
         
         
-        // 0. update html
+        // 0. Update html
         this.appendMessage(this.user, this.PERSON_IMG, "right", this.msgText);
         this.msgerInput.value = "";
 
@@ -84,7 +84,7 @@ export class Engine{
             this.id, this.userId, msgText, this.committedIndex
         )
 
-        // 2. Send all messages in msgHandler.
+        // 2. Send all messages from msgHandler.
         let msgArray = this.msgHandler.toJsonArray();
         let json = {
             committed_index : this.committedIndex,

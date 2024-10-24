@@ -1,32 +1,57 @@
+use std::clone;
+
 use chrono::{serde::ts_seconds, DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-// this is a right way to import a module from the same crate?
-use crate::data_model::time_stamp::TimeStamp;
+// {
+//     "committed_index": 0,
+//     "messages": [
+//       {
+//         "id": "unique_id",
+//         "user_id": "default userId",
+//         "content": "asdfasdf",
+//         "time": 1728305829,
+//         "time_stamp": 1
+//       }
+//     ]
+// }
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct ClientMsg {
-    uid: String,
-    data: String,
-    #[serde(with = "ts_seconds")]
-    time: DateTime<Utc>,
-    // commited index that client has received
-    cur_seq: u64,
-    // timestamp of the message when it was sent
-    timestamp: TimeStamp,
+    committed_index: u64,
+    messages: Vec<Msg>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize, Clone)]
+pub struct Msg{
+    id: String, 
+    user_id: String,
+    content: String,
+    time: DateTime<Utc>,
+    time_stamp: u64
+}
+
+#[derive(Serialize, Deserialize, Clone)]
 pub struct ServerMsg {
     commited_index: u64,
     data: Vec<String>,
 }
 
-impl ClientMsg {
-    pub fn get_uid(&self) -> &String {
-        &self.uid
+impl ClientMsg{
+    pub fn get_messages(&self) -> &Vec<Msg> {
+        &self.messages
     }
-    pub fn get_data(&self) -> String {
-        self.data.clone()
+
+    pub fn get_committed_index(&self) -> u64 {
+        self.committed_index
+    }
+}
+
+impl Msg {
+    pub fn get_uid(&self) -> &String {
+        &self.user_id
+    }
+    pub fn get_content(&self) -> String {
+        self.content.clone()
     }
 }

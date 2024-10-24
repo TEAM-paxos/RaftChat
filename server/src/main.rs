@@ -1,7 +1,9 @@
 use axum::{routing::get, Router};
 use futures_util::stream::SplitSink;
 use raft;
+use std::collections::HashMap;
 use std::net::SocketAddr;
+use std::sync::Arc;
 use tokio::net::TcpListener;
 use tokio::net::TcpStream;
 use tokio::sync::mpsc::{self, Receiver, Sender};
@@ -30,21 +32,25 @@ async fn main() {
         axum::serve(listener, app).await.unwrap();
     });
 
+    //
+    let committed_index: Arc<tokio::sync::Mutex<HashMap<String, u64>>> 
+        = Arc::new(tokio::sync::Mutex::new(HashMap::new()));
+
     // writer task
     let (writer_tx, writer_rx): (
-        Sender<data_model::msg::ClientMsg>,
-        Receiver<data_model::msg::ClientMsg>,
+        Sender<(String, data_model::msg::ClientMsg)>,
+        Receiver<(String, data_model::msg::ClientMsg)>,
     ) = mpsc::channel(15);
 
-    let writer = events::task::Writer::new();
+    let writer = events::task::Writer::new(committed_index.clone());
     writer.start(writer_rx, raft_tx).await;
 
     // publisher task
     let (pub_tx, pub_rx): (
-        Sender<SplitSink<WebSocketStream<TcpStream>, Message>>,
-        Receiver<SplitSink<WebSocketStream<TcpStream>, Message>>,
+        Sender<(String, SplitSink<WebSocketStream<TcpStream>, Message>)>,
+        Receiver<(String, SplitSink<WebSocketStream<TcpStream>, Message>)>,
     ) = mpsc::channel(15);
-    let publisher = events::task::Publisher::new();
+    let publisher = events::task::Publisher::new(committed_index.clone());
     publisher.start(commit_rx, pub_rx).await;
 
     // websocket server
