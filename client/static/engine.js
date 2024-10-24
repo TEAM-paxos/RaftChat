@@ -19,7 +19,7 @@ export class Engine{
     constructor(serverNameList){
         this.id = "unique_id";
         this.userId = "default userId";
-        this.committedIndex = 0;
+        this.committedIndex = 0; // committed index that client want to receive
         this.serverNameList = serverNameList;  
 
         this.msgerForm = utils.get(".msger-inputarea");

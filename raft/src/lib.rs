@@ -25,6 +25,9 @@ pub struct Commit {
 }
 
 impl Commit {
+    pub fn get_index(&self) -> u64 {
+        self.index
+    }
     pub fn get_data(&self) -> Vec<u8> {
         self.data.clone()
     }
@@ -63,7 +66,7 @@ impl RaftNode {
         // [NOTE] This is a dummy implementation
         // echo back the data
         while let Some(data) = self.propose_rx.recv().await {
-            println!("[RAFT] Received data: {:?}", data);
+            println!("[RAFT] Received data");
 
             sleep(Duration::from_secs(1));
 

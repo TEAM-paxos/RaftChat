@@ -1,10 +1,9 @@
 use crate::data_model::msg::ClientMsg;
 use futures_util::{
     stream::{SplitSink, SplitStream},
-    SinkExt, StreamExt,
+    StreamExt,
 };
 use std::process;
-use tokio::io::{self, AsyncBufReadExt, BufReader};
 use tokio::net::TcpStream;
 use tokio_tungstenite::{tungstenite::Message, WebSocketStream};
 
@@ -30,15 +29,18 @@ pub async fn client_handler(
     });
 
     // Send write_stream to publisher
-    publisher_tx.send((addr.to_string(), write_stream)).await.unwrap();
+    publisher_tx
+        .send((addr.to_string(), write_stream))
+        .await
+        .unwrap();
 
     join_handle.await.unwrap();
 }
 
 async fn read_task(
     mut read_stream: SplitStream<WebSocketStream<TcpStream>>,
-    writer_tx: tokio::sync::mpsc::Sender<( String, ClientMsg)>,
-    addr: std::net::SocketAddr
+    writer_tx: tokio::sync::mpsc::Sender<(String, ClientMsg)>,
+    addr: std::net::SocketAddr,
 ) {
     println!("read_task started");
 
@@ -51,12 +53,18 @@ async fn read_task(
                     eprintln!("->Error: {}", err);
                     process::exit(1);
                 });
-                    
-                writer_tx.send((addr.to_string(), client_msg)).await.unwrap();
+
+                writer_tx
+                    .send((addr.to_string(), client_msg))
+                    .await
+                    .unwrap();
             }
             Message::Binary(data) => {
                 let client_msg: ClientMsg = serde_json::from_slice(&data).unwrap();
-                writer_tx.send((addr.to_string(), client_msg)).await.unwrap();
+                writer_tx
+                    .send((addr.to_string(), client_msg))
+                    .await
+                    .unwrap();
             }
             Message::Close(_) => {
                 println!("Client disconnected");

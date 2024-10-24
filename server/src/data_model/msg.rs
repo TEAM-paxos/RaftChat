@@ -2,6 +2,7 @@ use std::clone;
 
 use chrono::{serde::ts_seconds, DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use tokio_tungstenite::tungstenite::Message;
 
 // {
 //     "committed_index": 0,
@@ -23,21 +24,21 @@ pub struct ClientMsg {
 }
 
 #[derive(Serialize, Deserialize, Clone)]
-pub struct Msg{
-    id: String, 
+pub struct Msg {
+    id: String,
     user_id: String,
     content: String,
     time: DateTime<Utc>,
-    time_stamp: u64
+    time_stamp: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct ServerMsg {
     commited_index: u64,
-    data: Vec<String>,
+    messages: Vec<Msg>,
 }
 
-impl ClientMsg{
+impl ClientMsg {
     pub fn get_messages(&self) -> &Vec<Msg> {
         &self.messages
     }
@@ -53,5 +54,25 @@ impl Msg {
     }
     pub fn get_content(&self) -> String {
         self.content.clone()
+    }
+}
+
+
+impl ServerMsg{
+    pub fn new(commited_index: u64) -> Self {
+        let messages= Vec::new();
+        
+        ServerMsg {
+            commited_index,
+            messages,
+        }
+    }
+
+    pub fn append(&mut self, msg: Msg) {
+        self.messages.push(msg);
+    }
+
+    pub fn get_len(&self) -> usize {
+        self.messages.len()
     }
 }

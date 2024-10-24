@@ -33,8 +33,8 @@ async fn main() {
     });
 
     //
-    let committed_index: Arc<tokio::sync::Mutex<HashMap<String, u64>>> 
-        = Arc::new(tokio::sync::Mutex::new(HashMap::new()));
+    let client_commit_idx: Arc<tokio::sync::Mutex<HashMap<String, u64>>> =
+        Arc::new(tokio::sync::Mutex::new(HashMap::new()));
 
     // writer task
     let (writer_tx, writer_rx): (
@@ -42,7 +42,7 @@ async fn main() {
         Receiver<(String, data_model::msg::ClientMsg)>,
     ) = mpsc::channel(15);
 
-    let writer = events::task::Writer::new(committed_index.clone());
+    let writer = events::task::Writer::new(client_commit_idx.clone());
     writer.start(writer_rx, raft_tx).await;
 
     // publisher task
@@ -50,7 +50,7 @@ async fn main() {
         Sender<(String, SplitSink<WebSocketStream<TcpStream>, Message>)>,
         Receiver<(String, SplitSink<WebSocketStream<TcpStream>, Message>)>,
     ) = mpsc::channel(15);
-    let publisher = events::task::Publisher::new(committed_index.clone());
+    let publisher = events::task::Publisher::new(Vec::new(), client_commit_idx.clone());
     publisher.start(commit_rx, pub_rx).await;
 
     // websocket server
