@@ -104,7 +104,7 @@
     background-size: cover;
     border-radius: 50%;
   }
-  .msg-bubble {
+  .msg-bubble, .nc-msg-bubble {
     max-width: 450px;
     padding: 15px;
     border-radius: 15px;
@@ -138,6 +138,11 @@
   }
   .right-msg .msg-img {
     margin: 0 0 0 10px;
+  }
+  .right-msg .nc-msg-bubble {
+    background-color: #FFA977;
+    color: #fff;
+    border-bottom-right-radius: 0;
   }
   
   .msger-inputarea , .port-inputarea {

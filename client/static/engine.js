@@ -49,7 +49,7 @@ export class Engine{
 
         this.socket.onopen = () => {
             console.log("WebSocket is open");
-            this.portInput.style.backgroundColor =  'rgb(0, 196, 65)';
+            this.portInput.style.backgroundColor =  'rgb(118, 255, 167)';
         };
 
         this.socket.onmessage = (event) => {
@@ -83,7 +83,7 @@ export class Engine{
         )
 
         // 1. Update html
-        this.appendNotCommittedMessage(this.user, this.PERSON_IMG, "right", msgText, timestamp);
+        this.appendNotCommittedMessage(this.userId, this.USER_IMG, "right", msgText, timestamp);
         this.msgerInput.value = "";
  
 
@@ -142,7 +142,7 @@ export class Engine{
         <div class="msg ${side}-msg" id=${time_stamp}>
           <div class="msg-img" style="background-image: url(${img})"></div>
     
-          <div class="msg-bubble">
+          <div class="nc-msg-bubble">
             <div class="msg-info">
               <div class="msg-info-name">${name}</div>
               <div class="msg-info-time">${utils.formatDate(new Date())}</div>
@@ -166,7 +166,7 @@ export class Engine{
             <div class="msg-bubble">
               <div class="msg-info">
                 <div class="msg-info-name">${name}</div>
-                <div class="msg-info-time">${Date.parse(time)}</div>
+                <div class="msg-info-time">${utils.formatDate(new Date(time))}</div>
               </div>
       
               <div class="msg-text">${utils.insertLineBreaks(text)}</div>
