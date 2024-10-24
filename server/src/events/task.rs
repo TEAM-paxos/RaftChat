@@ -7,6 +7,7 @@ use std::sync::{Arc, Mutex};
 use tokio::net::TcpStream;
 use tokio::sync::mpsc::Receiver;
 use tokio::time::{self, Duration};
+use tokio_tungstenite::tungstenite::handshake::server;
 use tokio_tungstenite::{tungstenite::Message, WebSocketStream};
 
 type Stream = SplitSink<WebSocketStream<TcpStream>, Message>;
@@ -86,8 +87,8 @@ impl Publisher {
                     '_,
                     HashMap<String, SplitSink<WebSocketStream<TcpStream>, Message>>,
                 > = clients.lock().await;
-                
-                // publish 
+
+                // publish
                 for (addr, client_stream) in clients.iter_mut() {
                     let client_idx;
                     {
@@ -96,23 +97,23 @@ impl Publisher {
                     }
 
                     // build server msg
-                    let mut server_msg = ServerMsg::new(raft_commit_idx);
+                    let mut server_msgs = Vec::new();
 
                     for i in client_idx..=raft_commit_idx {
-                        server_msg.append(state_machine[i as usize].clone());
+                        let temp = ServerMsg::new(i, state_machine[i as usize].clone());
+                        server_msgs.push(temp);
                     }
 
                     println!(
-                        "Sending to {:?} ({:?}): {:?}",
+                        "Sending to {:?} cli idx: ({:?}): msg len: {:?} raft idx: {:?}",
                         addr,
-                        client_idx, 
-                        server_msg.get_len(),
+                        client_idx,
+                        server_msgs.len(),
+                        raft_commit_idx
                     );
-                    
+
                     client_stream
-                        .send(Message::Text(
-                            serde_json::to_string(&server_msg).unwrap()
-                        ))
+                        .send(Message::Text(serde_json::to_string(&server_msgs).unwrap()))
                         .await
                         .unwrap();
                 }

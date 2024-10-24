@@ -40,6 +40,21 @@
     background: var(--msger-bg);
     box-shadow: 0 15px 15px -5px rgba(0, 0, 0, 0.2);
   }
+
+
+  .not-committed{
+    display: flex;
+    flex-flow: column wrap;
+    justify-content: space-between;
+    width: 50%;
+    max-width: 300px;
+    height: calc(100% - 50px);
+    border: var(--border);
+    border-radius: 5px;
+    background: var(--msger-bg);
+    box-shadow: 0 15px 15px -5px rgba(0, 0, 0, 0.2);
+  }
+
   
   .msger-header {
     display: flex;
@@ -55,6 +70,13 @@
     overflow-y: auto;
     padding: 10px;
   }
+
+  .nc-msger-chat{
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px;
+  }
+
   .msger-chat::-webkit-scrollbar {
     width: 6px;
   }

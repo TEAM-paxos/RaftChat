@@ -34,8 +34,8 @@ pub struct Msg {
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct ServerMsg {
-    commited_index: u64,
-    messages: Vec<Msg>,
+    committed_index: u64,
+    message: Msg,
 }
 
 impl ClientMsg {
@@ -57,22 +57,11 @@ impl Msg {
     }
 }
 
-
-impl ServerMsg{
-    pub fn new(commited_index: u64) -> Self {
-        let messages= Vec::new();
-        
+impl ServerMsg {
+    pub fn new(committed_index: u64, msg: Msg) -> Self {
         ServerMsg {
-            commited_index,
-            messages,
+            committed_index: committed_index,
+            message: msg,
         }
-    }
-
-    pub fn append(&mut self, msg: Msg) {
-        self.messages.push(msg);
-    }
-
-    pub fn get_len(&self) -> usize {
-        self.messages.len()
     }
 }

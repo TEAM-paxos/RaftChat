@@ -12,13 +12,13 @@ export class Engine{
     msgHandler;
 
     // Icons made by Freepik from www.flaticon.com
-    BOT_IMG = "https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/Headshot__0087_cropped_leslie-lamport.jpg";
-    PERSON_IMG = "https://www.gravatar.com/avatar/056effcac7fca237926f57ba2450429a";
+    OTHER_IMG = "https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/Headshot__0087_cropped_leslie-lamport.jpg";
+    USER_IMG = "https://www.gravatar.com/avatar/056effcac7fca237926f57ba2450429a";
 
     // html attributes
     constructor(serverNameList){
-        this.id = "unique_id";
-        this.userId = "default userId";
+        this.id = utils.getRandomString(7);
+        this.userId = utils.getRandomString(7);
         this.committedIndex = 0; // committed index that client want to receive
         this.serverNameList = serverNameList;  
 
@@ -27,6 +27,7 @@ export class Engine{
         this.msgerChat = utils.get(".msger-chat");
         this.portForm = utils.get(".port-inputarea");
         this.portInput = utils.get(".port-input"); 
+        this.notCommittedChat = utils.get(".nc-msger-chat");
 
         this.msgHandler = new MsgHandler();
 
@@ -53,7 +54,7 @@ export class Engine{
 
         this.socket.onmessage = (event) => {
             console.log("Message from server:", event.data);
-            this.botResponse(event.data);
+            this.updateState(event.data);
         };
 
         this.socket.onerror = (error) => {
@@ -75,17 +76,26 @@ export class Engine{
         if (!msgText) return;
         
         
-        // 0. Update html
-        this.appendMessage(this.user, this.PERSON_IMG, "right", this.msgText);
-        this.msgerInput.value = "";
-
-        // 1. Save message into msgHandler.
-        this.msgHandler.append(
-            this.id, this.userId, msgText, this.committedIndex
+       
+        // 0. Save message into msgHandler.
+        let timestamp = this.msgHandler.append(
+            this.id, this.userId, msgText
         )
 
+        // 1. Update html
+        this.appendNotCommittedMessage(this.user, this.PERSON_IMG, "right", msgText, timestamp);
+        this.msgerInput.value = "";
+ 
+
         // 2. Send all messages from msgHandler.
-        let msgArray = this.msgHandler.toJsonArray();
+        let msgArray;
+        if(this.msgHandler.queSize() > 5) {
+            msgArray = this.msgHandler.toJsonArray(1);
+        }
+        else {
+            msgArray =this.msgHandler.toJsonArray(0);
+        }
+        
         let json = {
             committed_index : this.committedIndex,
             messages : msgArray,
@@ -95,7 +105,59 @@ export class Engine{
         console.log(JSON.stringify(json))
     }
 
-    appendMessage(name, img, side, text) {
+    updateState(serverMsgs){
+        let serverMsg = JSON.parse(serverMsgs);
+
+        // 1. Update committed index
+        // this.committedIndex = serverMsg.committed_index+1;
+
+        // 2. Update html
+        for(let i=0;i<serverMsg.length;i++){
+            let msg = serverMsg[i].message;
+            let msgs_committed_idx = serverMsg[i].committed_index;
+
+            if (msgs_committed_idx != this.committedIndex) {
+                continue;
+            }
+            this.committedIndex++;
+
+            if( msg.id == this.id ){
+                // Clean up msgHandler
+                this.msgHandler.cleanUp(msg.time_stamp);
+
+                // Clean up not committed chat
+                let parent = document.getElementById("nc-chat-area");
+                let child = document.getElementById(msg.time_stamp);
+                 parent.removeChild(child);
+                this.appendCommittedMessage(msg.user_id, this.USER_IMG, "right", msg.content, msg.time);
+            }
+            else {
+                this.appendCommittedMessage(msg.user_id, this.OTHER_IMG, "left", msg.content, msg.time);   
+            }
+        }
+    }
+
+    appendNotCommittedMessage(name, img, side, text, time_stamp){
+        const msgHTML = `
+        <div class="msg ${side}-msg" id=${time_stamp}>
+          <div class="msg-img" style="background-image: url(${img})"></div>
+    
+          <div class="msg-bubble">
+            <div class="msg-info">
+              <div class="msg-info-name">${name}</div>
+              <div class="msg-info-time">${utils.formatDate(new Date())}</div>
+            </div>
+    
+            <div class="msg-text"><pre>${utils.insertLineBreaks(text)}</pre> </div>
+          </div>
+        </div>
+      `;
+               
+        this.notCommittedChat.insertAdjacentHTML("beforeend", msgHTML);
+        this.notCommittedChat.scrollTop += 500;
+    }
+
+    appendCommittedMessage(name, img, side, text, time) {
         //   Simple solution for small apps
         const msgHTML = `
           <div class="msg ${side}-msg">
@@ -104,25 +166,15 @@ export class Engine{
             <div class="msg-bubble">
               <div class="msg-info">
                 <div class="msg-info-name">${name}</div>
-                <div class="msg-info-time">${utils.formatDate(new Date())}</div>
+                <div class="msg-info-time">${Date.parse(time)}</div>
               </div>
       
-              <div class="msg-text">${text}</div>
+              <div class="msg-text">${utils.insertLineBreaks(text)}</div>
             </div>
           </div>
         `;
-      
+
         this.msgerChat.insertAdjacentHTML("beforeend", msgHTML);
         this.msgerChat.scrollTop += 500;
     }
-
-    botResponse(msgText) {
-        // const r = random(0, BOT_MSGS.length - 1);
-        // const msgText = BOT_MSGS[r];
-        const delay = msgText.split(" ").length * 100;
-      
-        setTimeout(() => {
-          this.appendMessage(this.BOT_NAME, this.BOT_IMG, "left", msgText);
-        }, delay);
-      }
 }

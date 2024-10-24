@@ -14,14 +14,24 @@ export class MsgHandler{
     append(id, user_id, content){
         this.#timeStamp += 1;
         this.#msgQue.push(new Msg(id, user_id, content, this.#timeStamp));
+        return this.#timeStamp;
     }
 
    
-    toJsonArray(){
+    toJsonArray(flag){
         let temp = [];
-        for(let i=0;i<this.#msgQue.length;i++){
-            temp.push(this.#msgQue[i].toJson());
+        // latest one
+        if(flag==0){
+            temp.push(this.#msgQue[this.#msgQue.length-1].toJson());
         }
+        // all messages
+        else {
+            for(let i=0;i<this.#msgQue.length;i++){
+                temp.push(this.#msgQue[i].toJson());
+            }
+        }
+        
+        
         return temp;
     }
 
