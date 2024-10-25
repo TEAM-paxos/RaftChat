@@ -26,7 +26,7 @@ export class Engine{
         this.msgerInput = utils.get(".msger-input");
         this.msgerChat = utils.get(".msger-chat");
         this.portForm = utils.get(".port-inputarea");
-        this.portInput = utils.get(".port-input"); 
+        this.portInput = utils.get(".port-send-btn"); 
         this.notCommittedChat = utils.get(".nc-msger-chat");
 
         this.msgHandler = new MsgHandler();
@@ -34,17 +34,24 @@ export class Engine{
         this.portForm.addEventListener("submit", event => {
             event.preventDefault();
       
-            const port = this.portInput.value;
-            if(isNaN(port)) return;
-      
-            const res = this.connectWS(port);
+            // const port = this.portInput.value;
+            // if(isNaN(port)) return;
+            
+            console.log("call func");
+            fetch("/get_info")
+            .then((response) => response.json())
+            .then((data) => {
+                    console.log(data);    
+                    this.info = data;
+                    this.connectWS(this.info.socket_port);
+                })
         })
 
         this.msgerForm.addEventListener("submit", this.sendToServer.bind(this));
     }
 
     connectWS(port){
-        this.socket = new WebSocket("ws://localhost:"+port);
+        this.socket = new WebSocket("ws://" + window.location.hostname+ ":" +this.info.socket_port);
         console.log("connect to " + "localhost:"+port);
 
         this.socket.onopen = () => {

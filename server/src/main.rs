@@ -1,3 +1,4 @@
+use axum::Extension;
 use axum::{routing::get, Router};
 use futures_util::stream::SplitSink;
 use raft;
@@ -14,6 +15,13 @@ use tower_http::services::ServeDir;
 mod axum_handler;
 mod data_model;
 mod events;
+
+#[derive(Clone, serde::Serialize)]
+struct Config{
+    peer: Vec<String>,
+    port: u16,
+    socket_port: u16
+}
 
 #[tokio::main]
 async fn main() {
@@ -34,6 +42,14 @@ async fn main() {
         .and_then(|val| val.parse::<u16>().ok())
         .unwrap_or(9001);
 
+
+    let config = Arc::new(Config{
+        peer: peer.clone(),
+        port,
+        socket_port
+    });
+
+
     // raft server
     let (commit_rx, raft_tx) = raft::Raft::new(1, peer);
 
@@ -41,7 +57,8 @@ async fn main() {
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
     let app = Router::new()
         .route("/", get(axum_handler::handler))
-        .nest_service("/static", ServeDir::new("../client/static"));
+        .nest_service("/static", ServeDir::new("../client/static"))
+        .route("/get_info", get(axum_handler::get_info)).layer(Extension(config));
 
     let listener = TcpListener::bind(&addr).await.unwrap();
 
