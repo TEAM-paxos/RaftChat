@@ -9,6 +9,7 @@ use tokio::net::TcpStream;
 use tokio::sync::mpsc::{self, Receiver, Sender};
 use tokio_tungstenite::{tungstenite::Message, WebSocketStream};
 use tower_http::services::ServeDir;
+use std::env;
 
 mod axum_handler;
 mod data_model;
@@ -16,11 +17,25 @@ mod events;
 
 #[tokio::main]
 async fn main() {
+    // read config
+    dotenv::dotenv().ok();
+
+    let peer: Vec<String> = env::var("PEER").ok()
+                            .and_then(|val| serde_json::from_str::<Vec<String>>(&val).ok())
+                            .unwrap_or_default();
+    let port: u16 = env::var("WEB_PORT").ok()
+                            .and_then(|val| val.parse::<u16>().ok())
+                            .unwrap_or(3000);
+
+    let socket_port: u16 = env::var("SOCKET_PORT").ok()
+                            .and_then(|val| val.parse::<u16>().ok())
+                            .unwrap_or(9001);
+
     // raft server
-    let (commit_rx, raft_tx) = raft::Raft::new(1, vec![2, 3]);
+    let (commit_rx, raft_tx) = raft::Raft::new(1, peer);
 
     // axum server
-    let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
+    let addr = SocketAddr::from(([0, 0, 0, 0], port));
     let app = Router::new()
         .route("/", get(axum_handler::handler))
         .nest_service("/static", ServeDir::new("../client/static"));
@@ -32,7 +47,7 @@ async fn main() {
         axum::serve(listener, app).await.unwrap();
     });
 
-    //
+    // writer and publisher set up
     let client_commit_idx: Arc<tokio::sync::Mutex<HashMap<String, u64>>> =
         Arc::new(tokio::sync::Mutex::new(HashMap::new()));
 
@@ -54,7 +69,8 @@ async fn main() {
     publisher.start(commit_rx, pub_rx).await;
 
     // websocket server
-    let server = TcpListener::bind("127.0.0.1:9001").await;
+    let addr = SocketAddr::from(([0, 0, 0, 0], socket_port));
+    let server = TcpListener::bind(addr).await;
     let listener = server.expect("failed to bind");
 
     while let Ok((stream, addr)) = listener.accept().await {

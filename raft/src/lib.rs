@@ -9,7 +9,7 @@ pub struct Raft {}
 
 struct RaftConfig {
     id: u64,
-    peers: Vec<u64>,
+    peers: Vec<String>,
 }
 
 struct RaftNode {
@@ -35,7 +35,7 @@ impl Commit {
 
 impl Raft {
     // return a new commit channel
-    pub fn new(id: u64, peers: Vec<u64>) -> (mpsc::Receiver<Commit>, mpsc::Sender<Vec<u8>>) {
+    pub fn new(id: u64, peers: Vec<String>) -> (mpsc::Receiver<Commit>, mpsc::Sender<Vec<u8>>) {
         let (commit_tx, commit_rx) = mpsc::channel(15);
         let (propose_tx, propose_rx) = mpsc::channel(15);
 
