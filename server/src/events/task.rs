@@ -2,13 +2,13 @@ use crate::data_model::msg::{ClientMsg, Msg, ServerMsg};
 use futures_util::stream::SplitSink;
 use futures_util::SinkExt;
 use raft::Commit;
-use tokio::sync::TryLockError;
-use tokio_tungstenite::tungstenite::client;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tokio::net::TcpStream;
 use tokio::sync::mpsc::Receiver;
+use tokio::sync::TryLockError;
 use tokio::time::{self, Duration};
+use tokio_tungstenite::tungstenite::client;
 use tokio_tungstenite::tungstenite::handshake::server;
 use tokio_tungstenite::{tungstenite::Message, WebSocketStream};
 
@@ -28,7 +28,7 @@ pub struct Writer {
 // - It preseves the stream that sended from the client_handler
 // - Receives committed messages from the Raft and sends them to the clients
 pub struct Publisher {
-    state_machine:   Arc<tokio::sync::Mutex<Vec<Msg>>>,
+    state_machine: Arc<tokio::sync::Mutex<Vec<Msg>>>,
 
     // < client's address, client's committed index >
     // shared with writer
@@ -38,7 +38,7 @@ pub struct Publisher {
     clients: Arc<tokio::sync::Mutex<HashMap<String, Stream>>>,
 
     // lock
-    pub_lock : Arc<tokio::sync::Mutex<u8>>
+    pub_lock: Arc<tokio::sync::Mutex<u8>>,
 }
 
 impl Publisher {
@@ -111,7 +111,8 @@ impl Publisher {
                         let mut server_msgs = Vec::new();
 
                         for i in client_idx..=raft_commit_idx {
-                            let temp = ServerMsg::new(i, state_machine.lock().await[i as usize].clone());
+                            let temp =
+                                ServerMsg::new(i, state_machine.lock().await[i as usize].clone());
                             server_msgs.push(temp);
                         }
 
@@ -128,9 +129,7 @@ impl Publisher {
                             .await;
 
                         match res {
-                            Ok(_) => {
-                                
-                            }
+                            Ok(_) => {}
                             Err(_) => {
                                 println!("Failed to send to {:?}", addr);
                                 delete_candidates.push(addr.clone());
@@ -153,7 +152,8 @@ impl Publisher {
 
                     for i in state_machine.lock().await.iter() {
                         print!("{:?} ", i.get_content());
-                    } println!(" << {:?} <<< ", state_machine.lock().await.len());
+                    }
+                    println!(" << {:?} <<< ", state_machine.lock().await.len());
                 }
 
                 drop(lock);
@@ -176,8 +176,7 @@ impl Publisher {
                         if state_machine.lock().await.len() == 0 {
                             drop(lock);
                             continue;
-                        }
-                        else {
+                        } else {
                             raft_commit_idx = state_machine.lock().await.len() as u64 - 1;
                         }
 
@@ -188,8 +187,6 @@ impl Publisher {
                                 '_,
                                 HashMap<String, SplitSink<WebSocketStream<TcpStream>, Message>>,
                             > = clients.lock().await;
-
-                           
 
                             // publish
                             for (addr, client_stream) in clients_.iter_mut() {
@@ -203,7 +200,10 @@ impl Publisher {
                                 let mut server_msgs = Vec::new();
 
                                 for i in client_idx..=raft_commit_idx {
-                                    let temp = ServerMsg::new(i, state_machine.lock().await[i as usize].clone());
+                                    let temp = ServerMsg::new(
+                                        i,
+                                        state_machine.lock().await[i as usize].clone(),
+                                    );
                                     server_msgs.push(temp);
                                 }
 
@@ -216,13 +216,13 @@ impl Publisher {
                                 );
 
                                 let res = client_stream
-                                    .send(Message::Text(serde_json::to_string(&server_msgs).unwrap()))
+                                    .send(Message::Text(
+                                        serde_json::to_string(&server_msgs).unwrap(),
+                                    ))
                                     .await;
 
                                 match res {
-                                    Ok(_) => {
-                                        
-                                    }
+                                    Ok(_) => {}
                                     Err(_) => {
                                         println!("Failed to send to {:?}", addr);
                                         delete_candidates.push(addr.clone());
@@ -243,7 +243,8 @@ impl Publisher {
                                 clients_.remove(addr);
                             }
 
-                            println!("now clients {:?} {:?}", 
+                            println!(
+                                "now clients {:?} {:?}",
                                 client_commit_idx.lock().await.len(),
                                 clients_.len()
                             )
@@ -256,7 +257,6 @@ impl Publisher {
                 }
             }
         });
-
     }
 }
 
