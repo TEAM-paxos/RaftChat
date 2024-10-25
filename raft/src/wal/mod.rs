@@ -1,7 +1,7 @@
 // Write-Ahead-Log
 // WAL is a write-ahead log that is used to persist the state of the Raft log to disk.
 
-use crate::raftchat::{Command, Entry};
+use crate::raftchat::Entry;
 
 pub struct WAL {
     data: Vec<Entry>,
@@ -53,27 +53,37 @@ impl WAL {
 #[cfg(test)]
 mod tests {
 
-    use crate::raftchat::{Command, Entry};
+    use crate::raftchat::Entry;
     use crate::WAL;
+
+    const fn mk_entry(term: u64) -> Entry {
+        Entry {
+            term: term,
+            client_id: 0,
+            message_id: 0,
+            data: vec![],
+        }
+    }
 
     #[tokio::test]
     #[rustfmt::skip]
     async fn case_append() {
         let mut log = WAL {
             data: vec![
-                Entry { term: 1, command: None, },
-                Entry { term: 2, command: None, },
-                Entry { term: 3, command: None, },
+                mk_entry(1),
+                mk_entry(2),
+                mk_entry(3),
             ],
         };
 
         assert_eq!(
             log.append_entries(
-                3,
-                3,
+                2,
+                2,
                 &[
-                    Entry { term: 4, command: None, },
-                    Entry { term: 5, command: None, },
+                    mk_entry(3),
+                    mk_entry(4),
+                    mk_entry(5),
                 ]
             )
             .await,
@@ -82,11 +92,11 @@ mod tests {
         assert_eq!(
             log.data,
             vec![
-                Entry { term: 1, command: None, },
-                Entry { term: 2, command: None, },
-                Entry { term: 3, command: None, },
-                Entry { term: 4, command: None, },
-                Entry { term: 5, command: None, },
+                mk_entry(1),
+                mk_entry(2),
+                mk_entry(3),
+                mk_entry(4),
+                mk_entry(5),
             ]
         );
     }
@@ -96,9 +106,9 @@ mod tests {
     async fn case_rewrite() {
         let mut log = WAL {
             data: vec![
-                Entry { term: 1, command: None, },
-                Entry { term: 2, command: None, },
-                Entry { term: 3, command: None, },
+                mk_entry(1),
+                mk_entry(2),
+                mk_entry(3),
             ],
         };
 
@@ -107,8 +117,8 @@ mod tests {
                 2,
                 2,
                 &[
-                    Entry { term: 4, command: None, },
-                    Entry { term: 5, command: None, },
+                    mk_entry(4),
+                    mk_entry(5),
                 ]
             )
             .await,
@@ -117,10 +127,10 @@ mod tests {
         assert_eq!(
             log.data,
             vec![
-                Entry { term: 1, command: None, },
-                Entry { term: 2, command: None, },
-                Entry { term: 4, command: None, },
-                Entry { term: 5, command: None, },
+                mk_entry(1),
+                mk_entry(2),
+                mk_entry(4),
+                mk_entry(5),
             ]
         );
     }
@@ -130,9 +140,9 @@ mod tests {
     async fn case_subsumed() {
         let mut log = WAL {
             data: vec![
-                Entry { term: 1, command: None, },
-                Entry { term: 2, command: None, },
-                Entry { term: 3, command: None, },
+                mk_entry(1),
+                mk_entry(2),
+                mk_entry(3),
             ],
         };
 
@@ -141,7 +151,7 @@ mod tests {
                 1,
                 1,
                 &[
-                    Entry { term: 2, command: None, },
+                    mk_entry(2),
                 ]
             )
             .await,
@@ -150,9 +160,9 @@ mod tests {
         assert_eq!(
             log.data,
             vec![
-                Entry { term: 1, command: None, },
-                Entry { term: 2, command: None, },
-                Entry { term: 3, command: None, },
+                mk_entry(1),
+                mk_entry(2),
+                mk_entry(3),
             ]
         );
     }

@@ -5,8 +5,8 @@ use tokio::sync::Mutex;
 
 use raftchat::raft_chat_client::RaftChatClient;
 use raftchat::raft_chat_server::{RaftChat, RaftChatServer};
+use raftchat::Entry;
 use raftchat::{AppendEntriesArgs, AppendEntriesRes};
-use raftchat::{Command, Entry};
 use raftchat::{RequestAppendArgs, RequestAppendRes};
 use raftchat::{RequestVoteArgs, RequestVoteRes};
 

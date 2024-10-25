@@ -7,15 +7,11 @@ service RaftChat {
   rpc RequestAppend(RequestAppendArgs) returns (RequestAppendRes);
 }
 
-message Command {
-  uint64 client_id = 1;
-  uint64 message_id = 2;
-  bytes data = 3;
-}
-
 message Entry {
   uint64 term = 1;
-  Command command = 2;
+  uint64 client_id = 2;
+  uint64 message_id = 3;
+  bytes data = 4;
 }
 
 message AppendEntriesArgs {
@@ -45,7 +41,9 @@ message RequestVoteRes {
 }
 
 message RequestAppendArgs {
-  Command command = 1;
+  uint64 client_id = 1;
+  uint64 message_id = 2;
+  bytes data = 3;
 }
 
 message RequestAppendRes {
