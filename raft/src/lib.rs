@@ -9,7 +9,7 @@ pub struct Raft {}
 
 struct RaftConfig {
     id: u64,
-    peers: Vec<u64>,
+    peers: Vec<String>,
 }
 
 struct RaftNode {
@@ -25,6 +25,9 @@ pub struct Commit {
 }
 
 impl Commit {
+    pub fn get_index(&self) -> u64 {
+        self.index
+    }
     pub fn get_data(&self) -> Vec<u8> {
         self.data.clone()
     }
@@ -32,7 +35,7 @@ impl Commit {
 
 impl Raft {
     // return a new commit channel
-    pub fn new(id: u64, peers: Vec<u64>) -> (mpsc::Receiver<Commit>, mpsc::Sender<Vec<u8>>) {
+    pub fn new(id: u64, peers: Vec<String>) -> (mpsc::Receiver<Commit>, mpsc::Sender<Vec<u8>>) {
         let (commit_tx, commit_rx) = mpsc::channel(15);
         let (propose_tx, propose_rx) = mpsc::channel(15);
 
@@ -63,7 +66,7 @@ impl RaftNode {
         // [NOTE] This is a dummy implementation
         // echo back the data
         while let Some(data) = self.propose_rx.recv().await {
-            println!("[RAFT] Received data: {:?}", data);
+            println!("[RAFT] Received data");
 
             sleep(Duration::from_secs(1));
 

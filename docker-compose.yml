@@ -1,0 +1,8 @@
+services:
+  server:  
+    image: raftchat/server:proto
+    container_name: raftchat_server 
+    ports: 
+      - "3000:3000" 
+      - "9001:9001"
+    restart: always
