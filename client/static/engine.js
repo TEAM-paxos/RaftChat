@@ -50,6 +50,7 @@ export class Engine{
         this.socket.onopen = () => {
             console.log("WebSocket is open");
             this.portInput.style.backgroundColor =  'rgb(118, 255, 167)';
+            this.interval = setInterval(this.retransmission.bind(this), 5000);
         };
 
         this.socket.onmessage = (event) => {
@@ -69,14 +70,29 @@ export class Engine{
         }
     }
 
+    retransmission(){
+         let msgArray = this.msgHandler.toJsonArray();
+        
+         let json = {
+             committed_index : this.committedIndex,
+             messages : msgArray,
+         }
+
+         // length is 0 then return
+         if(msgArray.length == 0){
+             return;
+         }
+ 
+         this.socket.send(JSON.stringify(json));
+         console.log("retrans: " + JSON.stringify(json))
+    }
+
     sendToServer(event){
         event.preventDefault();
-        console.log(this);
+  
         const msgText = this.msgerInput.value;
         if (!msgText) return;
         
-        
-       
         // 0. Save message into msgHandler.
         let timestamp = this.msgHandler.append(
             this.id, this.userId, msgText
@@ -86,15 +102,8 @@ export class Engine{
         this.appendNotCommittedMessage(this.userId, this.USER_IMG, "right", msgText, timestamp);
         this.msgerInput.value = "";
  
-
-        // 2. Send all messages from msgHandler.
-        let msgArray;
-        if(this.msgHandler.queSize() > 5) {
-            msgArray = this.msgHandler.toJsonArray(1);
-        }
-        else {
-            msgArray =this.msgHandler.toJsonArray(0);
-        }
+        // 2. Send messages from msgHandler.
+        let msgArray = this.msgHandler.toJsonArray();
         
         let json = {
             committed_index : this.committedIndex,
@@ -125,16 +134,29 @@ export class Engine{
                 // Clean up msgHandler
                 this.msgHandler.cleanUp(msg.time_stamp);
 
-                // Clean up not committed chat
-                let parent = document.getElementById("nc-chat-area");
-                let child = document.getElementById(msg.time_stamp);
-                 parent.removeChild(child);
-                this.appendCommittedMessage(msg.user_id, this.USER_IMG, "right", msg.content, msg.time);
+                try {
+                    // Clean up not committed chat
+                    let parent = document.getElementById("nc-chat-area");
+                    let child = document.getElementById(msg.time_stamp);
+                    parent.removeChild(child);
+
+                    this.appendCommittedMessage(msg.user_id, this.USER_IMG, "right", msg.content, msg.time, msgs_committed_idx);
+                }
+                catch(e) { 
+                    console.log("error: " + msg.time_stamp + ": split brain!!! ");
+                    console.log(error)
+                }
+                
+                
             }
             else {
-                this.appendCommittedMessage(msg.user_id, this.OTHER_IMG, "left", msg.content, msg.time);   
+                this.appendCommittedMessage(msg.user_id, this.OTHER_IMG, "left", msg.content, msg.time, msgs_committed_idx);   
             }
         }
+
+        // 3. aging & double msg size  
+        this.msgHandler.aging();
+        this.msgHandler.doubleMsgSize();
     }
 
     appendNotCommittedMessage(name, img, side, text, time_stamp){
@@ -157,7 +179,7 @@ export class Engine{
         this.notCommittedChat.scrollTop += 500;
     }
 
-    appendCommittedMessage(name, img, side, text, time) {
+    appendCommittedMessage(name, img, side, text, time, committed_index) {
         //   Simple solution for small apps
         const msgHTML = `
           <div class="msg ${side}-msg">
@@ -166,7 +188,7 @@ export class Engine{
             <div class="msg-bubble">
               <div class="msg-info">
                 <div class="msg-info-name">${name}</div>
-                <div class="msg-info-time">${utils.formatDate(new Date(time))}</div>
+                <div class="msg-info-time">${committed_index} / ${utils.formatDate(new Date(time))}</div>
               </div>
       
               <div class="msg-text">${utils.insertLineBreaks(text)}</div>

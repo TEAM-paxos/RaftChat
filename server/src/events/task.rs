@@ -150,6 +150,10 @@ impl Publisher {
                         client_commit_idx.lock().await.remove(addr);
                         clients_.remove(addr);
                     }
+
+                    for i in state_machine.lock().await.iter() {
+                        print!("{:?} ", i.get_content());
+                    } println!(" << {:?} <<< ", state_machine.lock().await.len());
                 }
 
                 drop(lock);

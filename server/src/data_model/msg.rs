@@ -23,7 +23,7 @@ pub struct ClientMsg {
     messages: Vec<Msg>,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Msg {
     id: String,
     user_id: String,

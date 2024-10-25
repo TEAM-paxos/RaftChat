@@ -1,6 +1,17 @@
-// This 
+// error case
+// 1. server down
+// -> ( reconnect the other server )
+// 2. server still live but message was lost. this case occure when
+//    pass the message to raft leader but the raft leader goes down. 
+// -> ( retransmission )
+
 export class MsgHandler{
     #msgQue = []
+    #msgAge = []
+    #sendIndexToServer = 0;
+    #msgSize = 1;
+    #msgLimit = 8;
+    #ageLimit = 3;
     #timeStamp
     constructor(){
         this.#timeStamp = 0;
@@ -10,28 +21,43 @@ export class MsgHandler{
         return [...this.#msgQue];
     }
 
-
     append(id, user_id, content){
         this.#timeStamp += 1;
         this.#msgQue.push(new Msg(id, user_id, content, this.#timeStamp));
+        this.#msgAge.push(0);
         return this.#timeStamp;
     }
 
+    aging(){
+        for(let i=0;i<this.#msgAge.length;i++){
+            this.#msgAge[i] += 1;
+        }
+        if(this.#msgAge[0]>=this.#ageLimit){
+            console.log("msg age limit over");
+            this.#sendIndexToServer = 0;
+            this.#msgSize = 1;
+        }
+    }
+
+    doubleMsgSize(){
+        this.#msgSize *= 2;
+        if(this.#msgSize > this.#msgLimit){
+            this.#msgSize = this.#msgLimit;
+        }
+    }
    
-    toJsonArray(flag){
+    toJsonArray(){
         let temp = [];
-        // latest one
-        if(flag==0){
-            temp.push(this.#msgQue[this.#msgQue.length-1].toJson());
-        }
-        // all messages
-        else {
-            for(let i=0;i<this.#msgQue.length;i++){
-                temp.push(this.#msgQue[i].toJson());
+        let i;
+        for(i = this.#sendIndexToServer; i < this.#msgSize; i++){
+            if(i >= this.#msgQue.length){
+                break;
             }
+            temp.push(this.#msgQue[i].toJson());
         }
-        
-        
+
+        this.#sendIndexToServer = i;
+
         return temp;
     }
 
@@ -39,10 +65,16 @@ export class MsgHandler{
         return this.#msgQue.length;
     }
 
+    // cleanUp must works like pop front.
     cleanUp(timeStamp){
-        for (let i = this.#msgQue.length - 1; i >= 0; i--) {
+        for (let i = 0; i < this.#msgQue.length; i++) {
             if (this.#msgQue[i].timeStamp === timeStamp) {
-                this.#msgQue.splice(i, 1); // 해당 인덱스의 요소 삭제
+                this.#msgQue.splice(i, 1); // 해당 인덱스의 msg 삭제
+                this.#msgAge.splice(i, 1); // 해당 인덱스의 age 삭제
+                this.#sendIndexToServer -= 1; // sendIndexToServer 감소
+                if(this.#sendIndexToServer < 0){
+                    this.#sendIndexToServer = 0;
+                }
             }
         }
     }
