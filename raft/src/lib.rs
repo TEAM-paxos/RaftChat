@@ -1,14 +1,18 @@
 use std::thread::sleep;
 use std::time::Duration;
 use tokio::sync::mpsc;
+use tokio::sync::Mutex;
 
 use raftchat::raft_chat_client::RaftChatClient;
 use raftchat::raft_chat_server::{RaftChat, RaftChatServer};
-use raftchat::{
-    AppendEntriesArgs, AppendEntriesRes, RequestAppendArgs, RequestAppendRes, RequestVoteArgs,
-    RequestVoteRes,
-};
+use raftchat::{AppendEntriesArgs, AppendEntriesRes};
+use raftchat::{Command, Entry};
+use raftchat::{RequestAppendArgs, RequestAppendRes};
+use raftchat::{RequestVoteArgs, RequestVoteRes};
+
 use tonic::{Request, Response, Status};
+
+use wal::WAL;
 
 mod wal;
 
@@ -27,14 +31,18 @@ enum Role {
     Candidate,
 }
 
-pub struct MyRaftChat {
-    config: RaftConfig,
+pub struct RaftState {
     current_term: u64,
-    // log: WAL
+    log: WAL,
     voted_for: Option<u64>,
     committed_length: u64,
     role: Role,
     leader: u64,
+}
+
+pub struct MyRaftChat {
+    config: RaftConfig,
+    state: Mutex<Box<RaftState>>,
 }
 
 #[tonic::async_trait]
@@ -43,7 +51,20 @@ impl RaftChat for MyRaftChat {
         &self,
         request: Request<AppendEntriesArgs>,
     ) -> Result<Response<AppendEntriesRes>, Status> {
-        unimplemented!()
+        let args: AppendEntriesArgs = request.into_inner();
+
+        let mut guard = self.state.lock().await;
+        if args.term < guard.current_term {
+            Ok(Response::new(AppendEntriesRes {
+                term: guard.current_term,
+                success: false,
+            }))
+        } else {
+            let success = guard
+                .log
+                .append_entries(args.prev_length, args.prev_term, &args.entries);
+            unimplemented!()
+        }
     }
 
     async fn request_vote(
