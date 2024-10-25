@@ -26,6 +26,7 @@ FROM debian:bullseye-slim
 
 WORKDIR /usr/local/bin 
 
+COPY client ./client
 COPY --from=builder /usr/src/raftchat/target/release/server .
 
 CMD ["./server"]
