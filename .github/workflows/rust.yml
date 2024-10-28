@@ -44,4 +44,6 @@ jobs:
           context: .
           push: true
           platforms: linux/amd64
-          tags: ${{ secrets.DOCKERHUB_USERNAME}}/raftchat:${{ env.TIMESTAMP }}
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME}}/raftchat:${{ env.TIMESTAMP }}
+            ${{ secrets.DOCKERHUB_USERNAME}}/raftchat:latest   
