@@ -14,38 +14,38 @@ impl WAL {
 
     // Dummy implementation.
     // New entry must be written on stable storage before exiting the function
-    // return true if succeed
+    // return None    if not matched
+    // return Some(l) if matched, where l is the length of guaranteed common prefix of
+    //                      the log of the leader and the log of this node.
     pub async fn append_entries(
         &mut self,
         prev_length: u64,
         prev_term: u64,
         entries: &[Entry],
-    ) -> bool {
+    ) -> Option<u64> {
         if self.data.len() < prev_length as usize {
-            false
+            None
         } else if (prev_length == 0) || (self.data[prev_length as usize - 1].term == prev_term) {
-            let mut index: usize = prev_length as usize;
+            // compatiable_length = prev_length <= self.data.len()
+            let mut compatible_length: usize = prev_length as usize;
             let mut entries: &[Entry] = entries;
-            // loop invariant : index <= self.data.len()
             while let [entry, entries_suffix @ ..] = entries {
-                if index < self.data.len() {
-                    if self.data[index].term == entry.term {
-                        index += 1;
+                if compatible_length < self.data.len() {
+                    if self.data[compatible_length].term == entry.term {
+                        compatible_length += 1;
                         entries = entries_suffix;
                         continue;
                     } else {
-                        self.data.truncate(index);
-                        self.data.extend_from_slice(entries);
-                        break;
+                        self.data.truncate(compatible_length);
                     }
-                } else {
-                    self.data.extend_from_slice(entries);
-                    break;
                 }
+                self.data.extend_from_slice(entries);
+                compatible_length += entries.len();
+                break;
             }
-            true
+            Some(compatible_length as u64)
         } else {
-            false
+            None
         }
     }
 }
@@ -87,7 +87,7 @@ mod tests {
                 ]
             )
             .await,
-            true
+            Some(5)
         );
         assert_eq!(
             log.data,
@@ -122,7 +122,7 @@ mod tests {
                 ]
             )
             .await,
-            true
+            Some(4)
         );
         assert_eq!(
             log.data,
@@ -155,7 +155,7 @@ mod tests {
                 ]
             )
             .await,
-            true
+            Some(2)
         );
         assert_eq!(
             log.data,

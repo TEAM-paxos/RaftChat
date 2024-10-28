@@ -1,3 +1,4 @@
+use std::cmp::{min,max};
 use std::thread::sleep;
 use std::time::Duration;
 use tokio::sync::mpsc;
@@ -10,6 +11,7 @@ use raftchat::{AppendEntriesArgs, AppendEntriesRes};
 use raftchat::{RequestAppendArgs, RequestAppendRes};
 use raftchat::{RequestVoteArgs, RequestVoteRes};
 
+use tonic::transport::Channel;
 use tonic::{Request, Response, Status};
 
 use wal::WAL;
@@ -43,6 +45,7 @@ pub struct RaftState {
 pub struct MyRaftChat {
     config: RaftConfig,
     state: Mutex<Box<RaftState>>,
+    connections: RaftChatClient<Channel>,
 }
 
 #[tonic::async_trait]
@@ -60,10 +63,24 @@ impl RaftChat for MyRaftChat {
                 success: false,
             }))
         } else {
-            let success = guard
+            match guard
                 .log
-                .append_entries(args.prev_length, args.prev_term, &args.entries);
-            unimplemented!()
+                .append_entries(args.prev_length, args.prev_term, &args.entries)
+                .await
+            {
+                None => Ok(Response::new(AppendEntriesRes {
+                    term: guard.current_term,
+                    success: false,
+                })),
+                Some(l) => {
+                    guard.committed_length =
+                        max(guard.committed_length, min(args.committed_length, l));
+                    Ok(Response::new(AppendEntriesRes {
+                        term: guard.current_term,
+                        success: true,
+                    }))
+                }
+            }
         }
     }
 
