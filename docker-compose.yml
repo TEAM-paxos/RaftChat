@@ -1,6 +1,6 @@
 services:
   server:  
-    image: raftchat/raftchat
+    image: raftchat/raftchat:latest
     container_name: raftchat_server 
     ports: 
       - "3000:3000" 
