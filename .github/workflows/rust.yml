@@ -41,5 +41,4 @@ jobs:
           context: .
           file: ./Dockerfile 
           platforms: linux/amd64
-          tags: ${{ secrets.DOCKERHUB_USERNAME}}/raftchat
-          labels: latest
+          tags: ${{ secrets.DOCKERHUB_USERNAME}}/raftchat:latest
