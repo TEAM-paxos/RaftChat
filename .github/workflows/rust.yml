@@ -33,7 +33,7 @@ jobs:
         id: docker_meta 
         uses: crazy-max/ghaction-docker-meta@v1
         with: 
-          images: raftchat_server
+          images: raftchat
           tag-semver: | 
             {{version}} {{major}}.{{minor}}
       - name: Set up docker buildx
@@ -50,4 +50,4 @@ jobs:
           file: ./Dockerfile 
           platforms: linux/amd64
           tags: ${{ steps.docker_meta.outputs.tags }}
-          lables: ${{ steps.docker_meta.outputs.lables }}
+          labels: ${{ steps.docker_meta.outputs.labels }}
