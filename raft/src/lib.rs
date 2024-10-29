@@ -44,11 +44,11 @@ pub struct RaftState {
 
 pub struct MyRaftChat {
     config: RaftConfig,
-    state: Mutex<Box<RaftState>>,
+    state: Mutex<RaftState>,
     connections: RaftChatClient<Channel>,
 }
 
-async fn update_term<'a, 'b>(guard : &'a mut MutexGuard<'b, Box<RaftState>>, new_term : u64) {
+async fn update_term<'a, 'b>(guard : &'a mut MutexGuard<'b, RaftState>, new_term : u64) {
     if guard.current_term < new_term {
         guard.current_term = new_term;
         guard.role = Role::Follower;
