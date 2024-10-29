@@ -107,7 +107,18 @@ impl RaftChat for MyRaftChat {
             }));
         }
         update_term(&mut guard, args.term, None);
-        unimplemented!()
+        let voted_granted = if guard.voted_for == None {
+            guard.voted_for = Some(args.candidate_id);
+            true
+        } else if guard.voted_for == Some(args.candidate_id) {
+            true
+        } else {
+            false
+        };
+        Ok(Response::new(RequestVoteRes {
+            term: guard.current_term,
+            vote_granted: voted_granted,
+        }))
     }
 
     async fn user_request(
