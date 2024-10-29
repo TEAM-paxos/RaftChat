@@ -6,3 +6,26 @@ services:
       - "3000:3000" 
       - "9001:9001"
     restart: always
+    volumes:
+      - ./logs:/usr/local/bin/raftchat/logs
+
+  node_exporter:
+    image: quay.io/prometheus/node-exporter:latest
+    container_name: node_exporter
+    command:
+      - '--path.rootfs=/host'
+    ports:
+      - "3005:9100"
+    pid: host
+    restart: unless-stopped
+    volumes:
+      - '/:/host:ro,rslave'
+
+  promtail:
+    image: grafana/promtail:latest
+    volumes:
+      - ./logs:/logs
+      - ./promtail-config.yml:/etc/promtail/config.yml 
+    command: -config.file=/etc/promtail/config.yml
+  
+    
