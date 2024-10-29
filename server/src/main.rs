@@ -19,7 +19,7 @@ mod events;
 
 #[derive(Clone, serde::Serialize, Debug)]
 struct Config {
-    peer: Vec<String>,
+    peers: Vec<String>,
     port: u16,
     socket_port: u16,
 }
@@ -30,12 +30,13 @@ async fn main() {
     log4rs::init_file("../config/log4rs.yaml", Default::default()).unwrap();
 
     // config setting
-    dotenv::dotenv().ok();
+    dotenv::from_path("../config/config.env").unwrap();
 
-    let peer: Vec<String> = env::var("PEER")
-        .ok()
-        .and_then(|val| serde_json::from_str::<Vec<String>>(&val).ok())
-        .unwrap_or_default();
+    let peers: Vec<String> = env::var("PEER")
+        .unwrap()
+        .split(',')
+        .map(|s| s.trim().to_string()) 
+        .collect();
     let port: u16 = env::var("WEB_PORT")
         .ok()
         .and_then(|val| val.parse::<u16>().ok())
@@ -47,7 +48,7 @@ async fn main() {
         .unwrap_or(9001);
 
     let config = Arc::new(Config {
-        peer: peer.clone(),
+        peers: peers.clone(),
         port,
         socket_port,
     });
@@ -55,7 +56,7 @@ async fn main() {
     info!("{:?}", config);
 
     // raft server
-    let (commit_rx, raft_tx) = raft::Raft::new(1, peer);
+    let (commit_rx, raft_tx) = raft::Raft::new(1, peers);
 
     // axum server
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
