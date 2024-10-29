@@ -1,6 +1,7 @@
 use axum::Extension;
 use axum::{routing::get, Router};
 use futures_util::stream::SplitSink;
+use log::info;
 use raft;
 use std::collections::HashMap;
 use std::env;
@@ -16,7 +17,7 @@ mod axum_handler;
 mod data_model;
 mod events;
 
-#[derive(Clone, serde::Serialize)]
+#[derive(Clone, serde::Serialize, Debug)]
 struct Config {
     peer: Vec<String>,
     port: u16,
@@ -25,7 +26,10 @@ struct Config {
 
 #[tokio::main]
 async fn main() {
-    // read config
+    // log setting
+    log4rs::init_file("../config/log4rs.yaml", Default::default()).unwrap();
+
+    // config setting
     dotenv::dotenv().ok();
 
     let peer: Vec<String> = env::var("PEER")
@@ -35,7 +39,7 @@ async fn main() {
     let port: u16 = env::var("WEB_PORT")
         .ok()
         .and_then(|val| val.parse::<u16>().ok())
-        .unwrap_or(3000);
+        .unwrap_or(3001);
 
     let socket_port: u16 = env::var("SOCKET_PORT")
         .ok()
@@ -48,6 +52,8 @@ async fn main() {
         socket_port,
     });
 
+    info!("{:?}", config);
+
     // raft server
     let (commit_rx, raft_tx) = raft::Raft::new(1, peer);
 
@@ -55,14 +61,14 @@ async fn main() {
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
     let app = Router::new()
         .route("/", get(axum_handler::handler))
-        .nest_service("/static", ServeDir::new("./client/static"))
+        .nest_service("/static", ServeDir::new("../client/static"))
         .route("/get_info", get(axum_handler::get_info))
         .layer(Extension(config));
 
     let listener = TcpListener::bind(&addr).await.unwrap();
 
     tokio::spawn(async move {
-        println!("AXUM listening on {}", addr);
+        info!("AXUM listening on {}", addr);
         axum::serve(listener, app).await.unwrap();
     });
 

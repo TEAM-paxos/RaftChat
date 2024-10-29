@@ -1,3 +1,4 @@
 .direnv
 /target
 /client/node_modules
+*.log
