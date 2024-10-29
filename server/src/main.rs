@@ -27,7 +27,7 @@ struct Config {
 #[tokio::main]
 async fn main() {
     // log setting
-    log4rs::init_file("../config/log4rs.yaml", Default::default()).unwrap();
+    log4rs::init_file("../config/log4rs.yaml", Default::default()).ok();
 
     // config setting
     dotenv::from_path("../config/config.env").unwrap();
@@ -35,7 +35,7 @@ async fn main() {
     let peers: Vec<String> = env::var("PEER")
         .unwrap()
         .split(',')
-        .map(|s| s.trim().to_string()) 
+        .map(|s| s.trim().to_string())
         .collect();
     let port: u16 = env::var("WEB_PORT")
         .ok()

@@ -3,10 +3,10 @@ use futures_util::{
     stream::{SplitSink, SplitStream},
     StreamExt,
 };
+use log::{error, info, warn};
 use std::process;
 use tokio::net::TcpStream;
 use tokio_tungstenite::{tungstenite::Message, WebSocketStream};
-use log::{info, error, warn};
 
 type Stream = SplitSink<WebSocketStream<TcpStream>, Message>;
 

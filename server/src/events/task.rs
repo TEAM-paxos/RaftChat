@@ -1,13 +1,13 @@
 use crate::data_model::msg::{ClientMsg, Msg, ServerMsg};
 use futures_util::stream::SplitSink;
 use futures_util::SinkExt;
+use log::{debug, info};
 use raft::Commit;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::net::TcpStream;
 use tokio::sync::mpsc::Receiver;
 use tokio::time::{self, Duration};
-use log::{info, debug};
 use tokio_tungstenite::{tungstenite::Message, WebSocketStream};
 
 type Stream = SplitSink<WebSocketStream<TcpStream>, Message>;
@@ -276,7 +276,11 @@ impl Writer {
         // Below code can be refactored to use tokio::select!
         tokio::spawn(async move {
             while let Some((addr, client_msg)) = writer_rx.recv().await {
-                info!("Received a message: {:?}: {:?}", addr, client_msg.get_messages());
+                info!(
+                    "Received a message: {:?}: {:?}",
+                    addr,
+                    client_msg.get_messages()
+                );
                 debug!("Recv: {:?}", client_msg);
 
                 let messages: &Vec<Msg> = client_msg.get_messages();
