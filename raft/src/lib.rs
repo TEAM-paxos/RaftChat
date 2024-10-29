@@ -8,8 +8,8 @@ use raftchat::raft_chat_client::RaftChatClient;
 use raftchat::raft_chat_server::{RaftChat, RaftChatServer};
 use raftchat::Entry;
 use raftchat::{AppendEntriesArgs, AppendEntriesRes};
-use raftchat::{RequestAppendArgs, RequestAppendRes};
 use raftchat::{RequestVoteArgs, RequestVoteRes};
+use raftchat::{UserRequestArgs, UserRequestRes};
 
 use tonic::transport::Channel;
 use tonic::{Request, Response, Status};
@@ -110,10 +110,10 @@ impl RaftChat for MyRaftChat {
         unimplemented!()
     }
 
-    async fn request_append(
+    async fn user_request(
         &self,
-        request: Request<RequestAppendArgs>,
-    ) -> Result<Response<RequestAppendRes>, Status> {
+        request: Request<UserRequestArgs>,
+    ) -> Result<Response<UserRequestRes>, Status> {
         unimplemented!()
     }
 }

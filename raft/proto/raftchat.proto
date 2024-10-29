@@ -4,7 +4,7 @@ package raftchat;
 service RaftChat {
   rpc AppendEntries(AppendEntriesArgs) returns (AppendEntriesRes);
   rpc RequestVote(RequestVoteArgs) returns (RequestVoteRes);
-  rpc RequestAppend(RequestAppendArgs) returns (RequestAppendRes);
+  rpc UserRequest(UserRequestArgs) returns (UserRequestRes);
 }
 
 message Entry {
@@ -42,11 +42,11 @@ message RequestVoteRes {
   bool vote_granted = 2;
 }
 
-message RequestAppendArgs {
+message UserRequestArgs {
   uint64 client_id = 1;
   uint64 message_id = 2;
   bytes data = 3;
 }
 
-message RequestAppendRes {
+message UserRequestRes {
 }
