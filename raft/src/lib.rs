@@ -1,8 +1,8 @@
-use std::cmp::{min,max};
+use std::cmp::{max, min};
 use std::thread::sleep;
 use std::time::Duration;
 use tokio::sync::mpsc;
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, MutexGuard};
 
 use raftchat::raft_chat_client::RaftChatClient;
 use raftchat::raft_chat_server::{RaftChat, RaftChatServer};
@@ -48,6 +48,14 @@ pub struct MyRaftChat {
     connections: RaftChatClient<Channel>,
 }
 
+async fn update_term<'a, 'b>(guard : &'a mut MutexGuard<'b, Box<RaftState>>, new_term : u64) {
+    if guard.current_term < new_term {
+        guard.current_term = new_term;
+        guard.role = Role::Follower;
+        guard.voted_for = None;
+    }
+}
+
 #[tonic::async_trait]
 impl RaftChat for MyRaftChat {
     async fn append_entries(
@@ -55,31 +63,29 @@ impl RaftChat for MyRaftChat {
         request: Request<AppendEntriesArgs>,
     ) -> Result<Response<AppendEntriesRes>, Status> {
         let args: AppendEntriesArgs = request.into_inner();
-
         let mut guard = self.state.lock().await;
         if args.term < guard.current_term {
-            Ok(Response::new(AppendEntriesRes {
+            return Ok(Response::new(AppendEntriesRes {
                 term: guard.current_term,
                 success: false,
-            }))
-        } else {
-            match guard
-                .log
-                .append_entries(args.prev_length, args.prev_term, &args.entries)
-                .await
-            {
-                None => Ok(Response::new(AppendEntriesRes {
+            }));
+        }
+        update_term(&mut guard, args.term);
+        match guard
+            .log
+            .append_entries(args.prev_length, args.prev_term, &args.entries)
+            .await
+        {
+            None => Ok(Response::new(AppendEntriesRes {
+                term: guard.current_term,
+                success: false,
+            })),
+            Some(l) => {
+                guard.committed_length = max(guard.committed_length, min(args.committed_length, l));
+                Ok(Response::new(AppendEntriesRes {
                     term: guard.current_term,
-                    success: false,
-                })),
-                Some(l) => {
-                    guard.committed_length =
-                        max(guard.committed_length, min(args.committed_length, l));
-                    Ok(Response::new(AppendEntriesRes {
-                        term: guard.current_term,
-                        success: true,
-                    }))
-                }
+                    success: true,
+                }))
             }
         }
     }
@@ -88,6 +94,15 @@ impl RaftChat for MyRaftChat {
         &self,
         request: Request<RequestVoteArgs>,
     ) -> Result<Response<RequestVoteRes>, Status> {
+        let args: RequestVoteArgs = request.into_inner();
+        let mut guard = self.state.lock().await;
+        if args.term < guard.current_term {
+            return Ok(Response::new(RequestVoteRes {
+                term: guard.current_term,
+                vote_granted: false,
+            }))
+        }
+        update_term(&mut guard, args.term);
         unimplemented!()
     }
 
