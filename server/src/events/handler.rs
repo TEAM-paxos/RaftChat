@@ -3,6 +3,7 @@ use futures_util::{
     stream::{SplitSink, SplitStream},
     StreamExt,
 };
+use log::{error, info, warn};
 use std::process;
 use tokio::net::TcpStream;
 use tokio_tungstenite::{tungstenite::Message, WebSocketStream};
@@ -15,7 +16,7 @@ pub async fn client_handler(
     writer_tx: tokio::sync::mpsc::Sender<(String, ClientMsg)>,
     publisher_tx: tokio::sync::mpsc::Sender<(String, Stream)>,
 ) {
-    println!("Incoming WebSocket connection from: {}", addr);
+    info!("Incoming WebSocket connection from: {}", addr);
 
     let ws_steam = tokio_tungstenite::accept_async(stream)
         .await
@@ -42,15 +43,15 @@ async fn read_task(
     writer_tx: tokio::sync::mpsc::Sender<(String, ClientMsg)>,
     addr: std::net::SocketAddr,
 ) {
-    println!("read_task started");
+    info!("read_task started");
 
     while let Some(msg) = read_stream.next().await {
         let msg = msg.unwrap();
         match msg {
             Message::Text(text) => {
                 let client_msg: ClientMsg = serde_json::from_str(&text).unwrap_or_else(|err| {
-                    println!("{}", text);
-                    eprintln!("->Error: {}", err);
+                    error!("{}", text);
+                    error!("{}", err);
                     process::exit(1);
                 });
 
@@ -67,11 +68,11 @@ async fn read_task(
                     .unwrap();
             }
             Message::Close(_) => {
-                println!("Client disconnected");
+                info!("Client disconnected");
                 break;
             }
             _ => {
-                println!("Unsupported message type");
+                warn!("Unsupported message type");
             }
         }
     }

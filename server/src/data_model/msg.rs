@@ -1,8 +1,5 @@
-use std::clone;
-
-use chrono::{serde::ts_seconds, DateTime, Utc};
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use tokio_tungstenite::tungstenite::Message;
 
 // {
 //     "committed_index": 0,
@@ -17,7 +14,7 @@ use tokio_tungstenite::tungstenite::Message;
 //     ]
 // }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct ClientMsg {
     committed_index: u64,
     messages: Vec<Msg>,

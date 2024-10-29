@@ -27,7 +27,7 @@ FROM debian:bullseye-slim
 WORKDIR /usr/local/bin 
 
 COPY --from=builder /usr/src/raftchat/client ./client
-COPY --from=builder /usr/src/raftchat/server/config.env .
-COPY --from=builder /usr/src/raftchat/target/release/server .
+COPY --from=builder /usr/src/raftchat/config ./config
+COPY --from=builder /usr/src/raftchat/target/release/server ./raftchat/
 
-CMD ["./server"]
+CMD [ "/bin/bash", "-c", "cd ./raftchat && ./server"]

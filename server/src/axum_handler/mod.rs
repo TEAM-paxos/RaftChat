@@ -1,8 +1,6 @@
 use crate::Config;
 use axum::response::Html;
-use axum::{body::Body, routing::get, Router};
 use axum::{Extension, Json};
-use serde_json::{json, Value};
 use std::sync::Arc;
 
 pub async fn handler() -> Html<&'static str> {

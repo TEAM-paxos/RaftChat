@@ -1,15 +1,13 @@
 use crate::data_model::msg::{ClientMsg, Msg, ServerMsg};
 use futures_util::stream::SplitSink;
 use futures_util::SinkExt;
+use log::{debug, info};
 use raft::Commit;
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use tokio::net::TcpStream;
 use tokio::sync::mpsc::Receiver;
-use tokio::sync::TryLockError;
 use tokio::time::{self, Duration};
-use tokio_tungstenite::tungstenite::client;
-use tokio_tungstenite::tungstenite::handshake::server;
 use tokio_tungstenite::{tungstenite::Message, WebSocketStream};
 
 type Stream = SplitSink<WebSocketStream<TcpStream>, Message>;
@@ -60,13 +58,12 @@ impl Publisher {
         mut commit_rx: Receiver<Commit>,
         mut pub_rx: Receiver<(String, Stream)>,
     ) {
-        println!("Publisher started");
+        info!("Publisher started");
 
         // receive stream from handler and store it in the hashmap
         let clients = self.clients.clone();
         tokio::spawn(async move {
             while let Some((addr, stream)) = pub_rx.recv().await {
-                println!("Received a new client");
                 clients.lock().await.insert(addr, stream);
             }
         });
@@ -82,12 +79,11 @@ impl Publisher {
         tokio::spawn(async move {
             while let Some(commit) = commit_rx.recv().await {
                 let lock = pub_lock.lock().await;
-                println!("got lock");
                 let raft_commit_idx = commit.get_index();
 
                 // [Warn] type error
                 if raft_commit_idx != state_machine.lock().await.len() as u64 {
-                    panic!(" split brained between raft and state machine");
+                    panic!("split brained between raft and state machine");
                 }
                 let c_msg: Msg = bincode::deserialize(&commit.get_data()).unwrap();
                 state_machine.lock().await.push(c_msg);
@@ -116,8 +112,8 @@ impl Publisher {
                             server_msgs.push(temp);
                         }
 
-                        println!(
-                            "tick Sending to {:?} cli idx: ({:?}): msg len: {:?} raft idx: {:?}",
+                        info!(
+                            "tick send to {:?} idx: ({:?}): msg len: {:?} raft idx: {:?}",
                             addr,
                             client_idx,
                             server_msgs.len(),
@@ -131,7 +127,7 @@ impl Publisher {
                         match res {
                             Ok(_) => {}
                             Err(_) => {
-                                println!("Failed to send to {:?}", addr);
+                                info!("Failed to send to {:?}", addr);
                                 delete_candidates.push(addr.clone());
                             }
                         }
@@ -145,15 +141,15 @@ impl Publisher {
                     > = clients.lock().await;
 
                     for addr in delete_candidates.iter() {
-                        println!("connection closed {:?}", addr);
+                        info!("connection closed {:?}", addr);
                         client_commit_idx.lock().await.remove(addr);
                         clients_.remove(addr);
                     }
 
                     for i in state_machine.lock().await.iter() {
-                        print!("{:?} ", i.get_content());
+                        debug!("{:?} ", i.get_content());
                     }
-                    println!(" << {:?} <<< ", state_machine.lock().await.len());
+                    debug!(" : {:?}", state_machine.lock().await.len());
                 }
 
                 drop(lock);
@@ -207,7 +203,7 @@ impl Publisher {
                                     server_msgs.push(temp);
                                 }
 
-                                println!(
+                                info!(
                                     "tick Sending to {:?} cli idx: ({:?}): msg len: {:?} raft idx: {:?}",
                                     addr,
                                     client_idx,
@@ -224,7 +220,7 @@ impl Publisher {
                                 match res {
                                     Ok(_) => {}
                                     Err(_) => {
-                                        println!("Failed to send to {:?}", addr);
+                                        info!("Failed to send to {:?}", addr);
                                         delete_candidates.push(addr.clone());
                                     }
                                 }
@@ -238,13 +234,13 @@ impl Publisher {
                             > = clients.lock().await;
 
                             for addr in delete_candidates.iter() {
-                                println!("connection closed {:?}", addr);
+                                info!("connection closed {:?}", addr);
                                 client_commit_idx.lock().await.remove(addr);
                                 clients_.remove(addr);
                             }
 
-                            println!(
-                                "now clients {:?} {:?}",
+                            debug!(
+                                "now nums of clients {:?} / {:?}",
                                 client_commit_idx.lock().await.len(),
                                 clients_.len()
                             )
@@ -273,14 +269,20 @@ impl Writer {
         mut writer_rx: Receiver<(String, ClientMsg)>,
         raft_tx: tokio::sync::mpsc::Sender<Vec<u8>>,
     ) {
-        println!("Writer started");
+        info!("Writer started");
         let client_commit_idx = self.client_commit_idx.clone();
 
         // [NOTE]
         // Below code can be refactored to use tokio::select!
         tokio::spawn(async move {
             while let Some((addr, client_msg)) = writer_rx.recv().await {
-                println!("Received a message from client: {:?}", addr);
+                info!(
+                    "Received a message: {:?}: {:?}",
+                    addr,
+                    client_msg.get_messages()
+                );
+                debug!("Recv: {:?}", client_msg);
+
                 let messages: &Vec<Msg> = client_msg.get_messages();
                 let index = client_msg.get_committed_index();
 
@@ -288,7 +290,7 @@ impl Writer {
                 client_commit_idx.lock().await.insert(addr, index);
 
                 for msg in messages.iter() {
-                    println!(
+                    info!(
                         "Sending to Raft: {:?} : {:?}",
                         msg.get_uid(),
                         msg.get_content()

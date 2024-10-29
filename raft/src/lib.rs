@@ -59,14 +59,14 @@ impl Raft {
 
 impl RaftNode {
     pub async fn start(&mut self) {
-        println!("Starting Raft server with id: {}", self.id);
+        //println!("Starting Raft server with id: {}", self.id);
 
         let mut idx = 0;
 
         // [NOTE] This is a dummy implementation
         // echo back the data
         while let Some(data) = self.propose_rx.recv().await {
-            println!("[RAFT] Received data");
+            //println!("[RAFT] Received data");
 
             sleep(Duration::from_secs(1));
 

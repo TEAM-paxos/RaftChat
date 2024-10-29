@@ -1,6 +1,7 @@
 use axum::Extension;
 use axum::{routing::get, Router};
 use futures_util::stream::SplitSink;
+use log::info;
 use raft;
 use std::collections::HashMap;
 use std::env;
@@ -16,26 +17,30 @@ mod axum_handler;
 mod data_model;
 mod events;
 
-#[derive(Clone, serde::Serialize)]
+#[derive(Clone, serde::Serialize, Debug)]
 struct Config {
-    peer: Vec<String>,
+    peers: Vec<String>,
     port: u16,
     socket_port: u16,
 }
 
 #[tokio::main]
 async fn main() {
-    // read config
-    dotenv::dotenv().ok();
+    // log setting
+    log4rs::init_file("../config/log4rs.yaml", Default::default()).ok();
 
-    let peer: Vec<String> = env::var("PEER")
-        .ok()
-        .and_then(|val| serde_json::from_str::<Vec<String>>(&val).ok())
-        .unwrap_or_default();
+    // config setting
+    dotenv::from_path("../config/config.env").unwrap();
+
+    let peers: Vec<String> = env::var("PEER")
+        .unwrap()
+        .split(',')
+        .map(|s| s.trim().to_string())
+        .collect();
     let port: u16 = env::var("WEB_PORT")
         .ok()
         .and_then(|val| val.parse::<u16>().ok())
-        .unwrap_or(3000);
+        .unwrap_or(3001);
 
     let socket_port: u16 = env::var("SOCKET_PORT")
         .ok()
@@ -43,26 +48,28 @@ async fn main() {
         .unwrap_or(9001);
 
     let config = Arc::new(Config {
-        peer: peer.clone(),
+        peers: peers.clone(),
         port,
         socket_port,
     });
 
+    info!("{:?}", config);
+
     // raft server
-    let (commit_rx, raft_tx) = raft::Raft::new(1, peer);
+    let (commit_rx, raft_tx) = raft::Raft::new(1, peers);
 
     // axum server
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
     let app = Router::new()
         .route("/", get(axum_handler::handler))
-        .nest_service("/static", ServeDir::new("./client/static"))
+        .nest_service("/static", ServeDir::new("../client/static"))
         .route("/get_info", get(axum_handler::get_info))
         .layer(Extension(config));
 
     let listener = TcpListener::bind(&addr).await.unwrap();
 
     tokio::spawn(async move {
-        println!("AXUM listening on {}", addr);
+        info!("AXUM listening on {}", addr);
         axum::serve(listener, app).await.unwrap();
     });
 
