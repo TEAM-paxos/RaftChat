@@ -16,11 +16,12 @@ message Entry {
 
 message AppendEntriesArgs {
   uint64 term = 1;
+  uint64 leader_id = 2;
   // invariant : prev_length = 0 -> prev_term = 0
-  uint64 prev_length = 2;
-  uint64 prev_term = 3;
-  repeated Entry entries = 4;
-  uint64 committed_length = 5;
+  uint64 prev_length = 3;
+  uint64 prev_term = 4;
+  repeated Entry entries = 5;
+  uint64 committed_length = 6;
 }
 
 message AppendEntriesRes {
@@ -30,9 +31,10 @@ message AppendEntriesRes {
 
 message RequestVoteArgs {
   uint64 term = 1;
+  uint64 candidate_id = 2;
   // invariant : prev_length = 0 -> prev_term = 0
-  uint64 prev_length = 2;
-  uint64 prev_term = 3;
+  uint64 prev_length = 3;
+  uint64 prev_term = 4;
 }
 
 message RequestVoteRes {

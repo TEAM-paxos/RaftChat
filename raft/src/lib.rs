@@ -29,7 +29,7 @@ struct RaftConfig {
 
 enum Role {
     Leader,
-    Follower,
+    Follower(Option<u64>),
     Candidate,
 }
 
@@ -48,10 +48,14 @@ pub struct MyRaftChat {
     connections: RaftChatClient<Channel>,
 }
 
-async fn update_term<'a, 'b>(guard : &'a mut MutexGuard<'b, RaftState>, new_term : u64) {
+async fn update_term<'a, 'b>(
+    guard: &'a mut MutexGuard<'b, RaftState>,
+    new_term: u64,
+    leader: Option<u64>,
+) {
     if guard.current_term < new_term {
         guard.current_term = new_term;
-        guard.role = Role::Follower;
+        guard.role = Role::Follower(leader);
         guard.voted_for = None;
     }
 }
@@ -70,7 +74,7 @@ impl RaftChat for MyRaftChat {
                 success: false,
             }));
         }
-        update_term(&mut guard, args.term);
+        update_term(&mut guard, args.term, Some(args.leader_id));
         match guard
             .log
             .append_entries(args.prev_length, args.prev_term, &args.entries)
@@ -100,9 +104,9 @@ impl RaftChat for MyRaftChat {
             return Ok(Response::new(RequestVoteRes {
                 term: guard.current_term,
                 vote_granted: false,
-            }))
+            }));
         }
-        update_term(&mut guard, args.term);
+        update_term(&mut guard, args.term, None);
         unimplemented!()
     }
 
