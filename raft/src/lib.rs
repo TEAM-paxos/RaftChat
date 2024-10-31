@@ -1,7 +1,7 @@
+use database::{Commit, RequestLog, DB};
 use std::thread::sleep;
 use std::time::Duration;
 use tokio::sync::mpsc;
-use database::{Commit, DB, RequestLog};
 
 mod transport;
 mod wal;

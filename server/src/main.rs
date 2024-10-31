@@ -1,9 +1,9 @@
 use axum::Extension;
 use axum::{routing::get, Router};
+use database;
 use futures_util::stream::SplitSink;
 use log::info;
 use raft;
-use database;
 use std::collections::HashMap;
 use std::env;
 use std::net::SocketAddr;
@@ -20,7 +20,7 @@ mod events;
 
 #[derive(Clone, serde::Serialize, Debug)]
 struct Config {
-    peers: Vec<String>, // [TODO] change to Vec<&str> 
+    peers: Vec<String>, // [TODO] change to Vec<&str>
     port: u16,
     socket_port: u16,
 }
@@ -51,10 +51,10 @@ async fn setup() -> Config {
         peers: peers,
         port: port,
         socket_port: socket_port,
-    }
+    };
 }
 
-async fn run_axum(config: &Config){
+async fn run_axum(config: &Config) {
     // axum server
     let addr = SocketAddr::from(([0, 0, 0, 0], config.port));
     let app = Router::new()
@@ -71,13 +71,12 @@ async fn run_axum(config: &Config){
     });
 }
 
-
 // - make channel from Database like raft or sync db
 // - start server read write tasks
 async fn run_tasks<T: database::DB>(
     db: T,
-    hash : Arc<tokio::sync::Mutex<HashMap<String, u64>>>,
-    config : &Config
+    hash: Arc<tokio::sync::Mutex<HashMap<String, u64>>>,
+    config: &Config,
 ) -> (
     Sender<(String, data_model::msg::ClientMsg)>,
     Sender<(String, SplitSink<WebSocketStream<TcpStream>, Message>)>,
@@ -86,7 +85,7 @@ async fn run_tasks<T: database::DB>(
 
     // writer task
     let (writer_tx, writer_rx): (
-        Sender<(String,data_model::msg::ClientMsg)>,
+        Sender<(String, data_model::msg::ClientMsg)>,
         Receiver<(String, data_model::msg::ClientMsg)>,
     ) = mpsc::channel(15);
 
@@ -99,7 +98,7 @@ async fn run_tasks<T: database::DB>(
         Receiver<(String, SplitSink<WebSocketStream<TcpStream>, Message>)>,
     ) = mpsc::channel(15);
 
-    let publisher = events::task::Publisher::new( Vec::new(),hash.clone());
+    let publisher = events::task::Publisher::new(Vec::new(), hash.clone());
     publisher.start(commit_rx, pub_rx).await;
 
     return (writer_tx, pub_tx);
@@ -113,11 +112,11 @@ async fn main() {
 
     run_axum(&config).await;
 
-     // writer and publisher set up
-     let client_commit_idx: Arc<tokio::sync::Mutex<HashMap<String, u64>>> =
-                    Arc::new(tokio::sync::Mutex::new(HashMap::new()));
+    // writer and publisher set up
+    let client_commit_idx: Arc<tokio::sync::Mutex<HashMap<String, u64>>> =
+        Arc::new(tokio::sync::Mutex::new(HashMap::new()));
 
-    let (writer_tx, pub_tx) = run_tasks(raft::Raft{}, client_commit_idx, &config).await;
+    let (writer_tx, pub_tx) = run_tasks(raft::Raft {}, client_commit_idx, &config).await;
 
     // websocket server
     let addr = SocketAddr::from(([0, 0, 0, 0], config.socket_port));

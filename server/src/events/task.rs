@@ -1,4 +1,5 @@
 use crate::data_model::msg::{ClientMsg, Msg, ServerMsg};
+use database::{Commit, RequestLog};
 use futures_util::stream::SplitSink;
 use futures_util::SinkExt;
 use log::{debug, info};
@@ -8,7 +9,6 @@ use tokio::net::TcpStream;
 use tokio::sync::mpsc::Receiver;
 use tokio::time::{self, Duration};
 use tokio_tungstenite::{tungstenite::Message, WebSocketStream};
-use database::{RequestLog, Commit};
 
 type Stream = SplitSink<WebSocketStream<TcpStream>, Message>;
 
@@ -296,12 +296,13 @@ impl Writer {
                         msg.get_content()
                     );
 
-                    let req = RequestLog::new(msg.get_uid(), msg.get_time_stamp(), bincode::serialize(msg).unwrap());
+                    let req = RequestLog::new(
+                        msg.get_uid(),
+                        msg.get_time_stamp(),
+                        bincode::serialize(msg).unwrap(),
+                    );
 
-                    raft_tx
-                        .send(req)
-                        .await
-                        .unwrap();
+                    raft_tx.send(req).await.unwrap();
                 }
             }
         });
