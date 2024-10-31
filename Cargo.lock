@@ -283,6 +283,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e8566979429cf69b49a5c740c60791108e86440e8be149bbea4fe54d2c32d6e2"
 
 [[package]]
+name = "database"
+version = "0.1.0"
+dependencies = [
+ "tokio",
+]
+
+[[package]]
 name = "derivative"
 version = "2.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -851,6 +858,7 @@ checksum = "dc33ff2d4973d518d823d61aa239014831e521c75da58e3df4840d3f47749d09"
 name = "raft"
 version = "0.1.0"
 dependencies = [
+ "database",
  "tokio",
 ]
 
@@ -1046,6 +1054,7 @@ dependencies = [
  "bincode",
  "byteorder",
  "chrono",
+ "database",
  "dotenv",
  "futures-util",
  "log",

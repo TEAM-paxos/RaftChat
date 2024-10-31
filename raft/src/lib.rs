@@ -1,6 +1,7 @@
 use std::thread::sleep;
 use std::time::Duration;
 use tokio::sync::mpsc;
+use database::{Commit, DB, RequestLog};
 
 mod transport;
 mod wal;
@@ -16,26 +17,16 @@ struct RaftNode {
     id: u64,
     config: RaftConfig,
     commit_tx: mpsc::Sender<Commit>,
-    propose_rx: mpsc::Receiver<Vec<u8>>,
+    propose_rx: mpsc::Receiver<RequestLog>,
 }
 
-pub struct Commit {
-    index: u64,
-    data: Vec<u8>,
-}
-
-impl Commit {
-    pub fn get_index(&self) -> u64 {
-        self.index
-    }
-    pub fn get_data(&self) -> Vec<u8> {
-        self.data.clone()
-    }
-}
-
-impl Raft {
+impl DB for Raft {
     // return a new commit channel
-    pub fn new(id: u64, peers: Vec<String>) -> (mpsc::Receiver<Commit>, mpsc::Sender<Vec<u8>>) {
+    fn make_channel(
+        &self,
+        id: u64,
+        peers: Vec<String>,
+    ) -> (mpsc::Receiver<Commit>, mpsc::Sender<RequestLog>) {
         let (commit_tx, commit_rx) = mpsc::channel(15);
         let (propose_tx, propose_rx) = mpsc::channel(15);
 
@@ -70,10 +61,7 @@ impl RaftNode {
 
             sleep(Duration::from_secs(1));
 
-            let value = Commit {
-                index: idx,
-                data: data,
-            };
+            let value = Commit::new(idx, data.get_data());
 
             self.commit_tx.send(value).await.unwrap();
             idx += 1;

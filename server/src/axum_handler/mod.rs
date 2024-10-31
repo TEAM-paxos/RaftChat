@@ -9,6 +9,6 @@ pub async fn handler() -> Html<&'static str> {
     Html(include_str!("../../../client/index.html"))
 }
 
-pub async fn get_info(Extension(config): Extension<Arc<Config>>) -> Json<Config> {
-    Json(config.as_ref().clone())
+pub async fn get_info(Extension(config): Extension<Config>) -> Json<Config> {
+    Json(config.clone())
 }
