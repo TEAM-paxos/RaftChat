@@ -8,14 +8,12 @@
 export class MsgHandler {
     #msgQue = []
     #msgSendTime = []
+    #msgSent = []
     #sendIndexToServer = 0;
     #msgSize = 1;
     #msgLimit = 8;
-    #msgTimeOut = 60000; //ms = 1min
-    #timeStamp
-    constructor() {
-        this.#timeStamp = 0;
-    }
+    #msgTimeOut = 1000; //ms = 1min
+    #timeStamp = 0;
 
     get getQue() {
         return [...this.#msgQue];
@@ -25,15 +23,20 @@ export class MsgHandler {
         this.#timeStamp += 1;
         this.#msgQue.push(new Msg(id, user_id, content, this.#timeStamp));
         this.#msgSendTime.push(Date.now());
+        this.#msgSent.push(true);
         return this.#timeStamp;
     }
 
     timeoutCheck() {
-        if (Date.now() - this.#msgSendTime[0] < this.#msgTimeOut) return;
+        if (this.#msgSent[0] == false || Date.now() - this.#msgSendTime[0] < this.#msgTimeOut) return;
 
         // time out : recovery mode 
         this.#sendIndexToServer = 0
         this.#msgSize = 1;
+
+        for (let i = 0; i < this.#msgQue.length; i++) {
+            this.#msgSent[i] = false;
+        }
     }
 
     doubleMsgSize() {
@@ -41,6 +44,7 @@ export class MsgHandler {
         if (this.#msgSize > this.#msgLimit) {
             this.#msgSize = this.#msgLimit;
         }
+        console.log("double: " + this.#msgSize)
     }
 
     toJsonArray() {
@@ -49,7 +53,8 @@ export class MsgHandler {
         }
 
         console.log("sendIndexToServer: " + this.#sendIndexToServer)
-        console.log("msgSize: " + this.#msgQue.length)
+        console.log("msgQueLength: " + this.#msgQue.length)
+        console.log("msgSize: " + this.#msgSize)
 
         let temp = [];
 
@@ -63,6 +68,7 @@ export class MsgHandler {
             }
             temp.push(this.#msgQue[j].toJson());
             this.#msgSendTime[j] = Date.now();
+            this.#msgSent[j] = true;
         }
 
         this.#sendIndexToServer = j + 1;
@@ -80,6 +86,7 @@ export class MsgHandler {
             if (this.#msgQue[i].timeStamp === timeStamp) {
                 this.#msgQue.splice(i, 1); // 해당 인덱스의 msg 삭제
                 this.#msgSendTime.splice(i, 1); // 해당 인덱스의 age 삭제
+                this.#msgSent.splice(i, 1);
                 this.#sendIndexToServer -= 1; // sendIndexToServer 감소
                 if (this.#sendIndexToServer < 0) {
                     this.#sendIndexToServer = 0;

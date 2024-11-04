@@ -58,4 +58,11 @@ impl RequestLog {
     pub fn get_id(&self) -> String {
         self.id.clone()
     }
+    pub fn get_timestamp(&self) -> u64 {
+        self.timestamp
+    }
+
+    pub fn get_id_ref(&self) -> &String {
+        &self.id
+    }
 }

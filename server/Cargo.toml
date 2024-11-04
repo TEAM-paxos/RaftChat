@@ -6,8 +6,8 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-raft = { path = "../raft" }
-database = {path = "../database"}
+mock_raft = { path = "../mock_raft" }
+database = { path = "../database" }
 byteorder = "1.5"
 rkyv = { version = "0.7", features = ["validation"] }
 tokio = { version = "1", features = ["full"] }
@@ -15,7 +15,7 @@ tokio-tungstenite = "0.23.1"
 futures-util = "0.3"
 axum = "0.7.5"
 tower-http = { version = "0.5.2", features = ["fs"] }
-chrono = {version = "0.4", features = ["serde"]}
+chrono = { version = "0.4", features = ["serde"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 bincode = "1.0"
