@@ -18,6 +18,8 @@ struct RaftNode {
     config: RaftConfig,
     commit_tx: mpsc::Sender<Commit>,
     propose_rx: mpsc::Receiver<RequestLog>,
+    test_flag: bool,
+    client_timestamp_map: std::collections::HashMap<String, u64>,
 }
 
 impl DB for Raft {
@@ -38,6 +40,8 @@ impl DB for Raft {
             },
             commit_tx: commit_tx,
             propose_rx: propose_rx,
+            test_flag: true,
+            client_timestamp_map: std::collections::HashMap::new(),
         };
 
         tokio::spawn(async move {
@@ -59,6 +63,7 @@ impl RaftNode {
         //println!("Starting Raft server with id: {}", self.id);
 
         let mut idx = 0;
+        let mut flag = true;
 
         // [NOTE] This is a dummy implementation
         // echo back the data
@@ -66,6 +71,25 @@ impl RaftNode {
             //println!("[RAFT] Received data");
 
             sleep(Duration::from_secs(1)).await;
+
+            // now msg is committed and wirtten on disk.
+
+            let time = self
+                .client_timestamp_map
+                .get(data.get_id_ref())
+                .unwrap_or(&1);
+
+            if self.test_flag && flag && idx == 3 {
+                flag = false;
+                continue;
+            }
+
+            // filter duplciate requests and out of order requests
+            if *time != data.get_timestamp() {
+                continue;
+            }
+
+            self.client_timestamp_map.insert(data.get_id(), *time + 1);
 
             let value = Commit::new(idx, data.get_data());
 

@@ -11,11 +11,8 @@ export class MsgHandler {
     #sendIndexToServer = 0;
     #msgSize = 1;
     #msgLimit = 8;
-    #msgTimeOut = 60000; //ms = 1min
-    #timeStamp
-    constructor() {
-        this.#timeStamp = 0;
-    }
+    #msgTimeOut = 15000; //ms = 1min
+    #timeStamp = 0;
 
     get getQue() {
         return [...this.#msgQue];
@@ -34,6 +31,8 @@ export class MsgHandler {
         // time out : recovery mode 
         this.#sendIndexToServer = 0
         this.#msgSize = 1;
+
+        // reset doesn't need, send time will be updated when sending to server.
     }
 
     doubleMsgSize() {
