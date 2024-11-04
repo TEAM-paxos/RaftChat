@@ -698,6 +698,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "mock_raft"
+version = "0.1.0"
+dependencies = [
+ "database",
+ "tokio",
+]
+
+[[package]]
 name = "num-traits"
 version = "0.2.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -857,10 +865,6 @@ checksum = "dc33ff2d4973d518d823d61aa239014831e521c75da58e3df4840d3f47749d09"
 [[package]]
 name = "raft"
 version = "0.1.0"
-dependencies = [
- "database",
- "tokio",
-]
 
 [[package]]
 name = "rand"
@@ -1059,7 +1063,7 @@ dependencies = [
  "futures-util",
  "log",
  "log4rs",
- "raft",
+ "mock_raft",
  "rkyv",
  "serde",
  "serde_json",

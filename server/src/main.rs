@@ -3,7 +3,7 @@ use axum::{routing::get, Router};
 use database;
 use futures_util::stream::SplitSink;
 use log::info;
-use raft;
+use mock_raft;
 use std::collections::HashMap;
 use std::env;
 use std::net::SocketAddr;
@@ -116,7 +116,7 @@ async fn main() {
     let client_commit_idx: Arc<tokio::sync::Mutex<HashMap<String, u64>>> =
         Arc::new(tokio::sync::Mutex::new(HashMap::new()));
 
-    let (writer_tx, pub_tx) = run_tasks(raft::Raft {}, client_commit_idx, &config).await;
+    let (writer_tx, pub_tx) = run_tasks(mock_raft::Raft {}, client_commit_idx, &config).await;
 
     // websocket server
     let addr = SocketAddr::from(([0, 0, 0, 0], config.socket_port));
