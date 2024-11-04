@@ -63,7 +63,7 @@ impl RaftNode {
         //println!("Starting Raft server with id: {}", self.id);
 
         let mut idx = 0;
-        let mut flag = true;
+        let mut drop = 3;
 
         // [NOTE] This is a dummy implementation
         // echo back the data
@@ -79,8 +79,8 @@ impl RaftNode {
                 .get(data.get_id_ref())
                 .unwrap_or(&1);
 
-            if self.test_flag && flag && idx == 3 {
-                flag = false;
+            if self.test_flag && idx == drop {
+                drop += 100;
                 continue;
             }
 
