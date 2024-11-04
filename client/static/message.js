@@ -5,74 +5,83 @@
 //    pass the message to raft leader but the raft leader goes down. 
 // -> ( retransmission )
 
-export class MsgHandler{
+export class MsgHandler {
     #msgQue = []
-    #msgAge = []
+    #msgSendTime = []
     #sendIndexToServer = 0;
     #msgSize = 1;
     #msgLimit = 8;
-    #ageLimit = 3;
+    #msgTimeOut = 60000; //ms = 1min
     #timeStamp
-    constructor(){
+    constructor() {
         this.#timeStamp = 0;
     }
 
-    get getQue(){
+    get getQue() {
         return [...this.#msgQue];
     }
 
-    append(id, user_id, content){
+    append(id, user_id, content) {
         this.#timeStamp += 1;
         this.#msgQue.push(new Msg(id, user_id, content, this.#timeStamp));
-        this.#msgAge.push(0);
+        this.#msgSendTime.push(Date.now());
         return this.#timeStamp;
     }
 
-    aging(){
-        for(let i=0;i<this.#msgAge.length;i++){
-            this.#msgAge[i] += 1;
-        }
-        if(this.#msgAge[0]>=this.#ageLimit){
-            console.log("msg age limit over");
-            this.#sendIndexToServer = 0;
-            this.#msgSize = 1;
-        }
+    timeoutCheck() {
+        if (Date.now() - this.#msgSendTime[0] < this.#msgTimeOut) return;
+
+        // time out : recovery mode 
+        this.#sendIndexToServer = 0
+        this.#msgSize = 1;
     }
 
-    doubleMsgSize(){
+    doubleMsgSize() {
         this.#msgSize *= 2;
-        if(this.#msgSize > this.#msgLimit){
+        if (this.#msgSize > this.#msgLimit) {
             this.#msgSize = this.#msgLimit;
         }
     }
-   
-    toJsonArray(){
-        let temp = [];
-        let i;
-        for(i = this.#sendIndexToServer; i < this.#msgSize; i++){
-            if(i >= this.#msgQue.length){
-                break;
-            }
-            temp.push(this.#msgQue[i].toJson());
+
+    toJsonArray() {
+        if (this.#sendIndexToServer >= this.#msgQue.length) {
+            return [];
         }
 
-        this.#sendIndexToServer = i;
+        console.log("sendIndexToServer: " + this.#sendIndexToServer)
+        console.log("msgSize: " + this.#msgQue.length)
+
+        let temp = [];
+
+        let j = 0;
+        for (let i = 0; i < this.#msgSize; i++) {
+            j = i + this.#sendIndexToServer;
+
+            if (j >= this.#msgQue.length) {
+                j--;
+                break;
+            }
+            temp.push(this.#msgQue[j].toJson());
+            this.#msgSendTime[j] = Date.now();
+        }
+
+        this.#sendIndexToServer = j + 1;
 
         return temp;
     }
 
-    queSize(){
+    queSize() {
         return this.#msgQue.length;
     }
 
     // cleanUp must works like pop front.
-    cleanUp(timeStamp){
+    cleanUp(timeStamp) {
         for (let i = 0; i < this.#msgQue.length; i++) {
             if (this.#msgQue[i].timeStamp === timeStamp) {
                 this.#msgQue.splice(i, 1); // 해당 인덱스의 msg 삭제
-                this.#msgAge.splice(i, 1); // 해당 인덱스의 age 삭제
+                this.#msgSendTime.splice(i, 1); // 해당 인덱스의 age 삭제
                 this.#sendIndexToServer -= 1; // sendIndexToServer 감소
-                if(this.#sendIndexToServer < 0){
+                if (this.#sendIndexToServer < 0) {
                     this.#sendIndexToServer = 0;
                 }
             }
@@ -87,7 +96,7 @@ export class Msg {
     #time;
     #timeStamp;
 
-    constructor(id, userId, content, timeStamp){
+    constructor(id, userId, content, timeStamp) {
         this.#id = id;
         this.#userId = userId;
         this.#content = content;
@@ -116,7 +125,7 @@ export class Msg {
         return this.#timeStamp;
     }
 
-    toJson(){
+    toJson() {
         return {
             id: this.#id,
             user_id: this.#userId,

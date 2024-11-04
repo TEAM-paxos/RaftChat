@@ -106,6 +106,10 @@ impl Publisher {
                         // build server msg
                         let mut server_msgs = Vec::new();
 
+                        if client_idx > raft_commit_idx {
+                            continue;
+                        }
+
                         for i in client_idx..=raft_commit_idx {
                             let temp =
                                 ServerMsg::new(i, state_machine.lock().await[i as usize].clone());
@@ -113,7 +117,7 @@ impl Publisher {
                         }
 
                         info!(
-                            "tick send to {:?} idx: ({:?}): msg len: {:?} raft idx: {:?}",
+                            "recv from raft & send to {:?} idx: ({:?}): msg len: {:?} raft idx: {:?}",
                             addr,
                             client_idx,
                             server_msgs.len(),
@@ -125,7 +129,14 @@ impl Publisher {
                             .await;
 
                         match res {
-                            Ok(_) => {}
+                            Ok(_) => {
+                                // update client commit index
+                                // this information might wrong but client will fix it
+                                client_commit_idx
+                                    .lock()
+                                    .await
+                                    .insert(addr.clone(), raft_commit_idx + 1);
+                            }
                             Err(_) => {
                                 info!("Failed to send to {:?}", addr);
                                 delete_candidates.push(addr.clone());
@@ -195,6 +206,10 @@ impl Publisher {
                                 // build server msg
                                 let mut server_msgs = Vec::new();
 
+                                if client_idx > raft_commit_idx {
+                                    continue;
+                                }
+
                                 for i in client_idx..=raft_commit_idx {
                                     let temp = ServerMsg::new(
                                         i,
@@ -218,7 +233,14 @@ impl Publisher {
                                     .await;
 
                                 match res {
-                                    Ok(_) => {}
+                                    Ok(_) => {
+                                        // update client commit index
+                                        // this information might wrong but client will fix it
+                                        client_commit_idx
+                                            .lock()
+                                            .await
+                                            .insert(addr.clone(), raft_commit_idx + 1);
+                                    }
                                     Err(_) => {
                                         info!("Failed to send to {:?}", addr);
                                         delete_candidates.push(addr.clone());
@@ -237,13 +259,13 @@ impl Publisher {
                                 info!("connection closed {:?}", addr);
                                 client_commit_idx.lock().await.remove(addr);
                                 clients_.remove(addr);
-                            }
 
-                            debug!(
-                                "now nums of clients {:?} / {:?}",
-                                client_commit_idx.lock().await.len(),
-                                clients_.len()
-                            )
+                                debug!(
+                                    "now nums of clients {:?} / {:?}",
+                                    client_commit_idx.lock().await.len(),
+                                    clients_.len()
+                                )
+                            }
                         }
                         drop(lock);
                     }

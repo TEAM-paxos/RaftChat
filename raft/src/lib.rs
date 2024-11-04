@@ -1,7 +1,7 @@
 use database::{Commit, RequestLog, DB};
-use std::thread::sleep;
 use std::time::Duration;
 use tokio::sync::mpsc;
+use tokio::time::sleep;
 
 mod transport;
 mod wal;
@@ -44,6 +44,12 @@ impl DB for Raft {
             raft_node.start().await;
         });
 
+        // tokio::task::spawn_blocking(move || {
+        //     tokio::runtime::Handle::current().block_on(async {
+        //         raft_node.start().await;
+        //     });
+        // });
+
         return (commit_rx, propose_tx);
     }
 }
@@ -59,7 +65,7 @@ impl RaftNode {
         while let Some(data) = self.propose_rx.recv().await {
             //println!("[RAFT] Received data");
 
-            sleep(Duration::from_secs(1));
+            sleep(Duration::from_secs(1)).await;
 
             let value = Commit::new(idx, data.get_data());
 

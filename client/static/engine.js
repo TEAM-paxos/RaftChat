@@ -1,11 +1,11 @@
 import { MsgHandler } from './message.js';
 import * as utils from './utils.js'
 
-export class Engine{
+export class Engine {
     id;
     userId;
     committedIndex;
-    
+
     serverNameList = [];
 
     socket;
@@ -16,32 +16,32 @@ export class Engine{
     USER_IMG = "https://www.gravatar.com/avatar/056effcac7fca237926f57ba2450429a";
 
     // html attributes
-    constructor(serverNameList){
+    constructor(serverNameList) {
         this.id = utils.getRandomString(7);
         this.userId = utils.getRandomString(7);
         this.committedIndex = 0; // committed index that client want to receive
-        this.serverNameList = serverNameList;  
+        this.serverNameList = serverNameList;
 
         this.msgerForm = utils.get(".msger-inputarea");
         this.msgerInput = utils.get(".msger-input");
         this.msgerChat = utils.get(".msger-chat");
         this.portForm = utils.get(".port-inputarea");
-        this.portInput = utils.get(".port-send-btn"); 
+        this.portInput = utils.get(".port-send-btn");
         this.notCommittedChat = utils.get(".nc-msger-chat");
 
         this.msgHandler = new MsgHandler();
 
         this.portForm.addEventListener("submit", event => {
             event.preventDefault();
-      
+
             // const port = this.portInput.value;
             // if(isNaN(port)) return;
-            
+
             console.log("call func");
             fetch("/get_info")
-            .then((response) => response.json())
-            .then((data) => {
-                    console.log(data);    
+                .then((response) => response.json())
+                .then((data) => {
+                    console.log(data);
                     this.info = data;
                     this.connectWS(this.info.socket_port);
                 })
@@ -50,13 +50,13 @@ export class Engine{
         this.msgerForm.addEventListener("submit", this.sendToServer.bind(this));
     }
 
-    connectWS(port){
-        this.socket = new WebSocket("ws://" + window.location.hostname+ ":" +this.info.socket_port);
-        console.log("connect to " + "localhost:"+port);
+    connectWS(port) {
+        this.socket = new WebSocket("ws://" + window.location.hostname + ":" + this.info.socket_port);
+        console.log("connect to " + "localhost:" + port);
 
         this.socket.onopen = () => {
             console.log("WebSocket is open");
-            this.portInput.style.backgroundColor =  'rgb(118, 255, 167)';
+            this.portInput.style.backgroundColor = 'rgb(118, 255, 167)';
             this.interval = setInterval(this.retransmission.bind(this), 5000);
         };
 
@@ -77,29 +77,30 @@ export class Engine{
         }
     }
 
-    retransmission(){
-         let msgArray = this.msgHandler.toJsonArray();
-        
-         let json = {
-             committed_index : this.committedIndex,
-             messages : msgArray,
-         }
+    retransmission() {
+        this.msgHandler.timeoutCheck();
 
-         // length is 0 then return
-         if(msgArray.length == 0){
-             return;
-         }
- 
-         this.socket.send(JSON.stringify(json));
-         console.log("retrans: " + JSON.stringify(json))
+        let msgArray = this.msgHandler.toJsonArray();
+        let json = {
+            committed_index: this.committedIndex,
+            messages: msgArray,
+        }
+
+        // length is 0 then return
+        if (msgArray.length == 0) {
+            return;
+        }
+
+        this.socket.send(JSON.stringify(json));
+        console.log("retrans: " + JSON.stringify(json))
     }
 
-    sendToServer(event){
+    sendToServer(event) {
         event.preventDefault();
-  
+
         const msgText = this.msgerInput.value;
         if (!msgText) return;
-        
+
         // 0. Save message into msgHandler.
         let timestamp = this.msgHandler.append(
             this.id, this.userId, msgText
@@ -108,27 +109,28 @@ export class Engine{
         // 1. Update html
         this.appendNotCommittedMessage(this.userId, this.USER_IMG, "right", msgText, timestamp);
         this.msgerInput.value = "";
- 
+
         // 2. Send messages from msgHandler.
         let msgArray = this.msgHandler.toJsonArray();
-        
+
         let json = {
-            committed_index : this.committedIndex,
-            messages : msgArray,
+            committed_index: this.committedIndex,
+            messages: msgArray,
         }
 
         this.socket.send(JSON.stringify(json));
-        console.log(JSON.stringify(json))
+        console.log("send to server:" + JSON.stringify(json))
     }
 
-    updateState(serverMsgs){
+    updateState(serverMsgs) {
         let serverMsg = JSON.parse(serverMsgs);
+        let deletedFlag = false;
 
         // 1. Update committed index
         // this.committedIndex = serverMsg.committed_index+1;
 
         // 2. Update html
-        for(let i=0;i<serverMsg.length;i++){
+        for (let i = 0; i < serverMsg.length; i++) {
             let msg = serverMsg[i].message;
             let msgs_committed_idx = serverMsg[i].committed_index;
 
@@ -137,7 +139,7 @@ export class Engine{
             }
             this.committedIndex++;
 
-            if( msg.id == this.id ){
+            if (msg.id == this.id) {
                 // Clean up msgHandler
                 this.msgHandler.cleanUp(msg.time_stamp);
 
@@ -148,25 +150,34 @@ export class Engine{
                     parent.removeChild(child);
 
                     this.appendCommittedMessage(msg.user_id, this.USER_IMG, "right", msg.content, msg.time, msgs_committed_idx);
+                    deletedFlag = true;
                 }
-                catch(e) { 
+                catch (e) {
                     console.log("error: " + msg.time_stamp + ": split brain!!! ");
                     console.log(error)
                 }
-                
-                
             }
             else {
-                this.appendCommittedMessage(msg.user_id, this.OTHER_IMG, "left", msg.content, msg.time, msgs_committed_idx);   
+                this.appendCommittedMessage(msg.user_id, this.OTHER_IMG, "left", msg.content, msg.time, msgs_committed_idx);
             }
         }
 
-        // 3. aging & double msg size  
-        this.msgHandler.aging();
-        this.msgHandler.doubleMsgSize();
+        // 3. double msg size  
+        if (deletedFlag) {
+            this.msgHandler.doubleMsgSize();
+        }
+
+        // // 4. ack committed idx 
+        // let json = {
+        //     committed_index: this.committedIndex,
+        //     messages: [],
+        // }
+
+        // this.socket.send(JSON.stringify(json));
+        // console.log("send to server:" + JSON.stringify(json))
     }
 
-    appendNotCommittedMessage(name, img, side, text, time_stamp){
+    appendNotCommittedMessage(name, img, side, text, time_stamp) {
         const msgHTML = `
         <div class="msg ${side}-msg" id=${time_stamp}>
           <div class="msg-img" style="background-image: url(${img})"></div>
@@ -181,7 +192,7 @@ export class Engine{
           </div>
         </div>
       `;
-               
+
         this.notCommittedChat.insertAdjacentHTML("beforeend", msgHTML);
         this.notCommittedChat.scrollTop += 500;
     }
