@@ -1,8 +1,8 @@
 use crate::data_model::msg::{ClientMsg, Msg, ServerMsg};
+use database::{Commit, RequestLog};
 use futures_util::stream::SplitSink;
 use futures_util::SinkExt;
 use log::{debug, info};
-use raft::Commit;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::net::TcpStream;
@@ -106,6 +106,10 @@ impl Publisher {
                         // build server msg
                         let mut server_msgs = Vec::new();
 
+                        if client_idx > raft_commit_idx {
+                            continue;
+                        }
+
                         for i in client_idx..=raft_commit_idx {
                             let temp =
                                 ServerMsg::new(i, state_machine.lock().await[i as usize].clone());
@@ -113,7 +117,7 @@ impl Publisher {
                         }
 
                         info!(
-                            "tick send to {:?} idx: ({:?}): msg len: {:?} raft idx: {:?}",
+                            "recv from raft & send to {:?} idx: ({:?}): msg len: {:?} raft idx: {:?}",
                             addr,
                             client_idx,
                             server_msgs.len(),
@@ -125,7 +129,14 @@ impl Publisher {
                             .await;
 
                         match res {
-                            Ok(_) => {}
+                            Ok(_) => {
+                                // update client commit index
+                                // this information might wrong but client will fix it
+                                client_commit_idx
+                                    .lock()
+                                    .await
+                                    .insert(addr.clone(), raft_commit_idx + 1);
+                            }
                             Err(_) => {
                                 info!("Failed to send to {:?}", addr);
                                 delete_candidates.push(addr.clone());
@@ -195,6 +206,10 @@ impl Publisher {
                                 // build server msg
                                 let mut server_msgs = Vec::new();
 
+                                if client_idx > raft_commit_idx {
+                                    continue;
+                                }
+
                                 for i in client_idx..=raft_commit_idx {
                                     let temp = ServerMsg::new(
                                         i,
@@ -218,7 +233,14 @@ impl Publisher {
                                     .await;
 
                                 match res {
-                                    Ok(_) => {}
+                                    Ok(_) => {
+                                        // update client commit index
+                                        // this information might wrong but client will fix it
+                                        client_commit_idx
+                                            .lock()
+                                            .await
+                                            .insert(addr.clone(), raft_commit_idx + 1);
+                                    }
                                     Err(_) => {
                                         info!("Failed to send to {:?}", addr);
                                         delete_candidates.push(addr.clone());
@@ -237,13 +259,13 @@ impl Publisher {
                                 info!("connection closed {:?}", addr);
                                 client_commit_idx.lock().await.remove(addr);
                                 clients_.remove(addr);
-                            }
 
-                            debug!(
-                                "now nums of clients {:?} / {:?}",
-                                client_commit_idx.lock().await.len(),
-                                clients_.len()
-                            )
+                                debug!(
+                                    "now nums of clients {:?} / {:?}",
+                                    client_commit_idx.lock().await.len(),
+                                    clients_.len()
+                                )
+                            }
                         }
                         drop(lock);
                     }
@@ -267,7 +289,7 @@ impl Writer {
     pub async fn start(
         &self,
         mut writer_rx: Receiver<(String, ClientMsg)>,
-        raft_tx: tokio::sync::mpsc::Sender<Vec<u8>>,
+        raft_tx: tokio::sync::mpsc::Sender<RequestLog>,
     ) {
         info!("Writer started");
         let client_commit_idx = self.client_commit_idx.clone();
@@ -295,10 +317,14 @@ impl Writer {
                         msg.get_uid(),
                         msg.get_content()
                     );
-                    raft_tx
-                        .send(bincode::serialize(msg).unwrap())
-                        .await
-                        .unwrap();
+
+                    let req = RequestLog::new(
+                        msg.get_uid(),
+                        msg.get_time_stamp(),
+                        bincode::serialize(msg).unwrap(),
+                    );
+
+                    raft_tx.send(req).await.unwrap();
                 }
             }
         });

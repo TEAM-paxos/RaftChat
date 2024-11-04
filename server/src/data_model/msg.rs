@@ -46,11 +46,20 @@ impl ClientMsg {
 }
 
 impl Msg {
-    pub fn get_uid(&self) -> &String {
-        &self.user_id
+    pub fn get_uid(&self) -> String {
+        self.user_id.clone()
     }
     pub fn get_content(&self) -> String {
         self.content.clone()
+    }
+    pub fn get_id(&self) -> String {
+        self.id.clone()
+    }
+    pub fn get_time(&self) -> DateTime<Utc> {
+        self.time.clone()
+    }
+    pub fn get_time_stamp(&self) -> u64 {
+        self.time_stamp
     }
 }
 
