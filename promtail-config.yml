@@ -10,14 +10,22 @@ scrape_configs:
       - targets:
           - localhost
         labels:
-          job: info_logs
-          __path__: /logs/info.log # info 폴더 내에 log 파일들 모두 수집
+          job: info_logs_{address}
+          __path__: /logs/info.log
           
   - job_name: error
     static_configs:
       - targets:
           - localhost
         labels:
-          job: error_logs
-          __path__: /logs/error.log # error 폴더 내에 log 파일들 모두 수집
+          job: error_logs_{address}
+          __path__: /logs/error.log
+  
+   - job_name: debug
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: debug_logs_{address}
+          __path__: /logs/debug.log 
 
