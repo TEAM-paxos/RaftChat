@@ -10,7 +10,7 @@ scrape_configs:
       - targets:
           - localhost
         labels:
-          job: info_logs_{address}
+          job: info_logs_{hostname}
           __path__: /logs/info.log
           
   - job_name: error
@@ -18,7 +18,7 @@ scrape_configs:
       - targets:
           - localhost
         labels:
-          job: error_logs_{address}
+          job: error_logs_{hostname}
           __path__: /logs/error.log
   
    - job_name: debug
@@ -26,6 +26,6 @@ scrape_configs:
       - targets:
           - localhost
         labels:
-          job: debug_logs_{address}
+          job: debug_logs_{hostname}
           __path__: /logs/debug.log 
 
