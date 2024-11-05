@@ -30,6 +30,7 @@ jobs:
       - name: Set up timestamp
         id: timestamp
         run: echo "TIMESTAMP=$(date +'%Y%m%d%H%M')" >> $GITHUB_ENV
+
       - name: Checkout
         uses: actions/checkout@v2
 
@@ -47,3 +48,16 @@ jobs:
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME}}/raftchat:${{ env.TIMESTAMP }}
             ${{ secrets.DOCKERHUB_USERNAME}}/raftchat:latest   
+    
+  run_server:
+    if: github.event_name == 'push'
+    runs-on: self-hosted
+    env: 
+      SERVER_ADDRESS: ${{secrets.MONITOR_ADDR}}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      
+      - name: run 
+        run: ./run_server.sh
+        
