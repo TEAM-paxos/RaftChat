@@ -23,23 +23,22 @@ pub mod raftchat {
 }
 
 struct RaftConfig {
-    self_id: u64,
-    peers: Vec<u64>,
+    self_id: String,
+    peers: Vec<String>,
 }
 
 enum Role {
     Leader,
-    Follower(Option<u64>),
+    Follower(Option<String>),
     Candidate,
 }
 
 pub struct RaftState {
     current_term: u64,
     log: WAL,
-    voted_for: Option<u64>,
+    voted_for: Option<String>,
     committed_length: u64,
     role: Role,
-    leader: u64,
 }
 
 pub struct MyRaftChat {
@@ -51,7 +50,7 @@ pub struct MyRaftChat {
 async fn update_term<'a, 'b>(
     guard: &'a mut MutexGuard<'b, RaftState>,
     new_term: u64,
-    leader: Option<u64>,
+    leader: Option<String>,
 ) {
     if guard.current_term < new_term {
         guard.current_term = new_term;
