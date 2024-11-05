@@ -51,13 +51,17 @@ jobs:
     
   run_server:
     if: github.event_name == 'push'
-    runs-on: self-hosted
+    strategy:
+      matrix: 
+        runner: [s1, s2, s3, s4]
+    runs-on: ${{matrix.runner}}
+    needs: build_image
     env: 
       SERVER_ADDRESS: ${{secrets.MONITOR_ADDR}}
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       
       - name: run 
-        run: ./run_server.sh
+        run: chmod +x run_server.sh && ./run_server.sh
         
