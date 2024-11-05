@@ -1,6 +1,3 @@
 [workspace]
-members = [
-  "raft",
-  "server",
-]
+members = ["database", "raft", "server", "mock_raft"]
 resolver = "2"
