@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-sed -i "s/{address}/$addr/g" promtail-config.yml
+sed -i "s/{address}/$SERVER_ADDRESS/g" promtail-config.yml
 
 docker compose down
 
