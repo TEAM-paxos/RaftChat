@@ -21,7 +21,7 @@ scrape_configs:
           job: error_logs_{hostname}
           __path__: /logs/error.log
   
-   - job_name: debug
+  - job_name: debug
     static_configs:
       - targets:
           - localhost
