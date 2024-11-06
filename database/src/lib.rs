@@ -6,7 +6,7 @@ pub trait DB {
         &self,
         id: u64,
         peers: Vec<String>,
-    ) -> (mpsc::Receiver<Commit>, mpsc::Sender<RequestLog>);
+    ) -> (mpsc::Receiver<Commit>, mpsc::Sender<UserRequest>);
 }
 
 // DB will return this struct.
@@ -33,18 +33,18 @@ impl Commit {
     }
 }
 
-// DB receive RequestLog struct form
+// DB receive UserRequest struct form
 // client and return Commit struct.
 #[derive(Debug)]
-pub struct RequestLog {
+pub struct UserRequest {
     id: String, // id is assumed to be unique for each client
     timestamp: u64,
     data: Vec<u8>,
 }
 
-impl RequestLog {
-    pub fn new(_id: String, _timestamp: u64, _data: Vec<u8>) -> RequestLog {
-        RequestLog {
+impl UserRequest {
+    pub fn new(_id: String, _timestamp: u64, _data: Vec<u8>) -> UserRequest {
+        UserRequest {
             id: _id,
             timestamp: _timestamp,
             data: _data,

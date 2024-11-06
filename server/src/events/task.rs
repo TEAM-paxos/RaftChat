@@ -1,5 +1,5 @@
 use crate::data_model::msg::{ClientMsg, Msg, ServerMsg};
-use database::{Commit, RequestLog};
+use database::{Commit, UserRequest};
 use futures_util::stream::SplitSink;
 use futures_util::SinkExt;
 use log::{debug, info};
@@ -289,7 +289,7 @@ impl Writer {
     pub async fn start(
         &self,
         mut writer_rx: Receiver<(String, ClientMsg)>,
-        raft_tx: tokio::sync::mpsc::Sender<RequestLog>,
+        raft_tx: tokio::sync::mpsc::Sender<UserRequest>,
     ) {
         info!("Writer started");
         let client_commit_idx = self.client_commit_idx.clone();
@@ -318,7 +318,7 @@ impl Writer {
                         msg.get_content()
                     );
 
-                    let req = RequestLog::new(
+                    let req = UserRequest::new(
                         msg.get_uid(),
                         msg.get_time_stamp(),
                         bincode::serialize(msg).unwrap(),

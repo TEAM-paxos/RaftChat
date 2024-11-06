@@ -1,4 +1,4 @@
-use database::{Commit, RequestLog, DB};
+use database::{Commit, UserRequest, DB};
 use std::time::Duration;
 use tokio::sync::mpsc;
 use tokio::time::sleep;
@@ -14,7 +14,7 @@ struct RaftNode {
     id: u64,
     config: RaftConfig,
     commit_tx: mpsc::Sender<Commit>,
-    propose_rx: mpsc::Receiver<RequestLog>,
+    propose_rx: mpsc::Receiver<UserRequest>,
     test_flag: bool,
     client_timestamp_map: std::collections::HashMap<String, u64>,
 }
@@ -25,7 +25,7 @@ impl DB for Raft {
         &self,
         id: u64,
         peers: Vec<String>,
-    ) -> (mpsc::Receiver<Commit>, mpsc::Sender<RequestLog>) {
+    ) -> (mpsc::Receiver<Commit>, mpsc::Sender<UserRequest>) {
         let (commit_tx, commit_rx) = mpsc::channel(15);
         let (propose_tx, propose_rx) = mpsc::channel(15);
 
