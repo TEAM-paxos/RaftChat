@@ -1,4 +1,6 @@
 use std::cmp::{max, min};
+use std::collections::HashMap;
+use std::net::SocketAddr;
 use std::thread::sleep;
 use std::time::Duration;
 use tokio::sync::mpsc;
@@ -11,7 +13,7 @@ use raftchat::{AppendEntriesArgs, AppendEntriesRes};
 use raftchat::{RequestVoteArgs, RequestVoteRes};
 use raftchat::{UserRequestArgs, UserRequestRes};
 
-use tonic::transport::Channel;
+use tonic::transport::{Channel, Server};
 use tonic::{Request, Response, Status};
 
 use wal::WAL;
@@ -23,8 +25,9 @@ pub mod raftchat {
 }
 
 struct RaftConfig {
+    serve_addr: SocketAddr,
     self_id: String,
-    peers: Vec<String>,
+    peers: Vec<String>, // except self
 }
 
 enum Role {
@@ -44,7 +47,7 @@ pub struct RaftState {
 pub struct MyRaftChat {
     config: RaftConfig,
     state: Mutex<RaftState>,
-    connections: RaftChatClient<Channel>,
+    connections: HashMap<String, Option<RaftChatClient<Channel>>>,
 }
 
 async fn update_term<'a, 'b>(
@@ -126,4 +129,19 @@ impl RaftChat for MyRaftChat {
     ) -> Result<Response<UserRequestRes>, Status> {
         unimplemented!()
     }
+}
+
+async fn start(config: RaftConfig) -> Result<(), Box<dyn std::error::Error>> {
+    let myraftchat: MyRaftChat = unimplemented!();
+
+    Server::builder()
+        .add_service(RaftChatServer::new(myraftchat))
+        .serve(config.serve_addr)
+        .await?;
+
+    // for peer in config.peers {
+    //     let mut client: RaftChatClient<Channel> = RaftChatClient::connect(peer).await?;
+    // }
+
+    Ok(())
 }
