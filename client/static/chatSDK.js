@@ -1,8 +1,8 @@
-import {Engine} from  './engine.js'
+import { Engine } from './engine.js'
 
+let engine
 // initialize
-window.onload = function(){
-    let engine = new Engine();
+window.onload = function () {
+    engine = new Engine();
 }
-
 

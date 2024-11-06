@@ -18,6 +18,8 @@ COPY --from=planner /usr/src/raftchat/recipe.json .
 RUN cargo chef cook --release --recipe-path recipe.json 
 
 COPY . . 
+RUN apt update -y && apt upgrade -y
+RUN apt install -y protobuf-compiler libprotobuf-dev  
 RUN  cargo build -p server --release 
 
 ## 
