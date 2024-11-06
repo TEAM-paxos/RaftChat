@@ -1,7 +1,7 @@
 // Write-Ahead-Log
 // WAL is a write-ahead log that is used to persist the state of the Raft log to disk.
 
-use crate::raftchat::Entry;
+use crate::raftchat_tonic::Entry;
 
 pub struct WAL {
     data: Vec<Entry>,
@@ -53,13 +53,13 @@ impl WAL {
 #[cfg(test)]
 mod tests {
 
-    use crate::raftchat::Entry;
+    use crate::raftchat_tonic::Entry;
     use crate::WAL;
 
-    const fn mk_entry(term: u64) -> Entry {
+    fn mk_entry(term: u64) -> Entry {
         Entry {
             term: term,
-            client_id: 0,
+            client_id: "client1".to_string(),
             message_id: 0,
             data: vec![],
         }
