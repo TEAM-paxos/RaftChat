@@ -1,5 +1,6 @@
 import { MsgHandler } from './message.js';
 import * as utils from './utils.js'
+import { Storage } from './storage.js';
 
 export class Engine {
     id;
@@ -30,6 +31,8 @@ export class Engine {
         this.notCommittedChat = utils.get(".nc-msger-chat");
         this.current_host = window.location.host;
         this.msgHandler = new MsgHandler();
+        this.storage = new Storage();
+
 
         this.portForm.addEventListener("submit", event => {
             event.preventDefault();
@@ -43,9 +46,37 @@ export class Engine {
                 .then((data) => {
                     console.log(data);
                     this.info = data;
+
+                    // load from storage
+                    if (this.info.version == this.storage.getServerVersion()) {
+                        try {
+                            this.committedIndex = parseInt(this.storage.getLatestIdx());
+                            this.id = this.storage.getId();
+                            this.userId = this.storage.getUid();
+
+                            console.log(this.committedIndex + " " + this.id + " " + this.userId);
+
+                            for (let i = 0; i < this.committedIndex; i++) {
+                                let msg = this.storage.getMessage(i);
+                                this.appendCommittedMessage(msg.user_id, this.USER_IMG, "right", msg.content, msg.time, i);
+                            }
+                        }
+                        catch (err) {
+                            console.log("reading storage" + err);
+                        }
+
+                    } else {
+                        this.storage.clear();
+                        this.storage.setIdUid(this.id, this.userId);
+                        this.storage.setServerVersion(this.info.version);
+                        this.storage.setLatestIdx(0);
+                        this.storage.setTimeStamp(0);
+                    }
+
                     this.connectWS(window.location.hostname, this.info.socket_port);
                 })
         })
+
 
         this.msgerForm.addEventListener("submit", this.sendToServer.bind(this));
     }
@@ -156,6 +187,11 @@ export class Engine {
             }
             this.committedIndex++;
 
+            // save in storage
+            this.storage.saveMessage(msgs_committed_idx, msg);
+            this.storage.setLatestIdx(this.committedIndex);
+
+
             if (msg.id == this.id) {
                 // Clean up msgHandler
                 this.msgHandler.cleanUp(msg.time_stamp);
@@ -165,14 +201,14 @@ export class Engine {
                     let parent = document.getElementById("nc-chat-area");
                     let child = document.getElementById(msg.time_stamp);
                     parent.removeChild(child);
+                }
+                catch (err) {
+                    console.log("there is no element to delete");
+                    console.log(err);
+                }
 
-                    this.appendCommittedMessage(msg.user_id, this.USER_IMG, "right", msg.content, msg.time, msgs_committed_idx);
-                    deletedFlag = true;
-                }
-                catch (e) {
-                    console.log("error: " + msg.time_stamp + ": split brain!!! ");
-                    console.log(error)
-                }
+                this.appendCommittedMessage(msg.user_id, this.USER_IMG, "right", msg.content, msg.time, msgs_committed_idx);
+                deletedFlag = true;
             }
             else {
                 this.appendCommittedMessage(msg.user_id, this.OTHER_IMG, "left", msg.content, msg.time, msgs_committed_idx);

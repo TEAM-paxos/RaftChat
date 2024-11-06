@@ -23,6 +23,7 @@ struct Config {
     peers: Vec<String>, // [TODO] change to Vec<&str>
     port: u16,
     socket_port: u16,
+    version: String,
 }
 
 async fn setup() -> Config {
@@ -47,10 +48,13 @@ async fn setup() -> Config {
         .and_then(|val| val.parse::<u16>().ok())
         .unwrap_or(9001);
 
+    let version: String = env::var("VERSION").unwrap();
+
     return Config {
         peers: peers,
         port: port,
         socket_port: socket_port,
+        version: version,
     };
 }
 

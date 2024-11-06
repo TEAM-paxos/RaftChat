@@ -15,12 +15,27 @@ export class MsgHandler {
     #msgTimeOut = 1000; //ms = 1min
     #timeStamp = 0;
 
+    getTimeStamp() {
+        return this.#timeStamp;
+    }
+
+    setTimeStamp(timeStamp) {
+        this.#timeStamp = timeStamp;
+    }
+
     get getQue() {
         return [...this.#msgQue];
     }
 
     append(id, user_id, content) {
+
+        // sync the other taps...
+        this.#timeStamp = parseInt(localStorage.getItem('timeStamp'));
+
         this.#timeStamp += 1;
+
+        localStorage.setItem('timeStamp', this.#timeStamp);
+
         this.#msgQue.push(new Msg(id, user_id, content, this.#timeStamp));
         this.#msgSendTime.push(Date.now());
         this.#msgSent.push(true);
