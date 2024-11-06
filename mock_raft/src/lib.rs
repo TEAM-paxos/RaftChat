@@ -3,9 +3,6 @@ use std::time::Duration;
 use tokio::sync::mpsc;
 use tokio::time::sleep;
 
-mod transport;
-mod wal;
-
 pub struct Raft {}
 
 struct RaftConfig {
