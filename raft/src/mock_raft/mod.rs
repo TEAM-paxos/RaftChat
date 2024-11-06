@@ -1,4 +1,4 @@
-use database::{Commit, UserRequest, DB};
+use crate::database::{Commit, UserRequest, DB};
 use std::time::Duration;
 use tokio::sync::mpsc;
 use tokio::time::sleep;

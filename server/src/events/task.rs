@@ -1,5 +1,5 @@
 use crate::data_model::msg::{ClientMsg, Msg, ServerMsg};
-use database::{Commit, UserRequest};
+use raft::database::{Commit, UserRequest};
 use futures_util::stream::SplitSink;
 use futures_util::SinkExt;
 use log::{debug, info};

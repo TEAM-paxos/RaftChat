@@ -18,7 +18,9 @@ use tonic::{Request, Response, Status};
 
 use wal::WAL;
 
-mod wal;
+pub mod wal;
+pub mod mock_raft;
+pub mod database;
 
 pub mod raftchat {
     tonic::include_proto!("raftchat");
