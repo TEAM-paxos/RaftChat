@@ -9,7 +9,7 @@ service RaftChat {
 
 message Entry {
   uint64 term = 1;
-  uint64 client_id = 2;
+  string client_id = 2;
   uint64 message_id = 3;
   bytes data = 4;
 }
@@ -43,7 +43,7 @@ message RequestVoteRes {
 }
 
 message UserRequestArgs {
-  uint64 client_id = 1;
+  string client_id = 1;
   uint64 message_id = 2;
   bytes data = 3;
 }

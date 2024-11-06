@@ -1,3 +1,8 @@
+pub mod database;
+pub mod mock_raft;
+pub mod raftchat_tonic;
+pub mod wal;
+
 use std::cmp::{max, min};
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -6,23 +11,17 @@ use std::time::Duration;
 use tokio::sync::mpsc;
 use tokio::sync::{Mutex, MutexGuard};
 
-use raftchat::raft_chat_client::RaftChatClient;
-use raftchat::raft_chat_server::{RaftChat, RaftChatServer};
-use raftchat::Entry;
-use raftchat::{AppendEntriesArgs, AppendEntriesRes};
-use raftchat::{RequestVoteArgs, RequestVoteRes};
-use raftchat::{UserRequestArgs, UserRequestRes};
+use raftchat_tonic::raft_chat_client::RaftChatClient;
+use raftchat_tonic::raft_chat_server::{RaftChat, RaftChatServer};
+use raftchat_tonic::Entry;
+use raftchat_tonic::{AppendEntriesArgs, AppendEntriesRes};
+use raftchat_tonic::{RequestVoteArgs, RequestVoteRes};
+use raftchat_tonic::{UserRequestArgs, UserRequestRes};
 
 use tonic::transport::{Channel, Server};
 use tonic::{Request, Response, Status};
 
 use wal::WAL;
-
-mod wal;
-
-pub mod raftchat {
-    tonic::include_proto!("raftchat");
-}
 
 struct RaftConfig {
     serve_addr: SocketAddr,
