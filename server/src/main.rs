@@ -1,8 +1,8 @@
 use axum::Extension;
 use axum::{routing::get, Router};
-use raft::database;
 use futures_util::stream::SplitSink;
 use log::info;
+use raft::database;
 use raft::mock_raft;
 use std::collections::HashMap;
 use std::env;

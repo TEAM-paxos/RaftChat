@@ -1,4 +1,5 @@
-use crate::database::{Commit, UserRequest, DB};
+use crate::database::DB;
+use crate::raftchat_tonic::{Entry, UserRequestArgs};
 use std::time::Duration;
 use tokio::sync::mpsc;
 use tokio::time::sleep;
@@ -13,8 +14,8 @@ struct RaftConfig {
 struct RaftNode {
     id: u64,
     config: RaftConfig,
-    commit_tx: mpsc::Sender<Commit>,
-    propose_rx: mpsc::Receiver<UserRequest>,
+    commit_tx: mpsc::Sender<Entry>,
+    propose_rx: mpsc::Receiver<UserRequestArgs>,
     test_flag: bool,
     client_timestamp_map: std::collections::HashMap<String, u64>,
 }
@@ -25,7 +26,7 @@ impl DB for Raft {
         &self,
         id: u64,
         peers: Vec<String>,
-    ) -> (mpsc::Receiver<Commit>, mpsc::Sender<UserRequest>) {
+    ) -> (mpsc::Receiver<Entry>, mpsc::Sender<UserRequestArgs>) {
         let (commit_tx, commit_rx) = mpsc::channel(15);
         let (propose_tx, propose_rx) = mpsc::channel(15);
 
@@ -71,10 +72,7 @@ impl RaftNode {
 
             // now msg is committed and wirtten on disk.
 
-            let time = self
-                .client_timestamp_map
-                .get(data.get_id_ref())
-                .unwrap_or(&1);
+            let time = self.client_timestamp_map.get(&data.client_id).unwrap_or(&1);
 
             if self.test_flag && idx == drop {
                 drop += 100;
@@ -82,13 +80,19 @@ impl RaftNode {
             }
 
             // filter duplciate requests and out of order requests
-            if *time != data.get_timestamp() {
+            if *time != data.message_id {
                 continue;
             }
 
-            self.client_timestamp_map.insert(data.get_id(), *time + 1);
+            self.client_timestamp_map
+                .insert(data.client_id.clone(), *time + 1);
 
-            let value = Commit::new(idx, data.get_data());
+            let value = Entry {
+                term: 0,
+                client_id: data.client_id,
+                message_id: data.message_id,
+                data: data.data,
+            };
 
             self.commit_tx.send(value).await.unwrap();
             idx += 1;
