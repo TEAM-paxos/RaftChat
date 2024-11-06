@@ -16,12 +16,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-    - name: Build
-      run: cargo build --verbose
     - name: Run tests
-      run: cargo test --verbose
-    - name: Format sources
-      run: cargo fmt --all -- --check
+      run: nix develop --command bash -c "cargo build --verbose && cargo test --verbose && cargo fmt --all -- --check"
 
   build_image:
     if: github.event_name == 'push' 
@@ -64,4 +60,3 @@ jobs:
       
       - name: run 
         run: mkdir logs && chmod 775 logs && chmod +x run_server.sh && ./run_server.sh
-        
