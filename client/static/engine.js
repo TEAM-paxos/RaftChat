@@ -58,7 +58,13 @@ export class Engine {
 
                             for (let i = 0; i < this.committedIndex; i++) {
                                 let msg = this.storage.getMessage(i);
-                                this.appendCommittedMessage(msg.user_id, this.USER_IMG, "right", msg.content, msg.time, i);
+
+                                if (msg.id == this.id) {
+                                    this.appendCommittedMessage(msg.user_id, this.USER_IMG, "right", msg.content, msg.time, i);
+                                }
+                                else {
+                                    this.appendCommittedMessage(msg.user_id, this.OTHER_IMG, "left", msg.content, msg.time, i);
+                                }
                             }
                         }
                         catch (err) {
