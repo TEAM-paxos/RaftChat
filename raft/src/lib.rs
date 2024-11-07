@@ -46,16 +46,6 @@ pub struct MyRaftChat {
     connections: HashMap<String, Option<RaftChatClient<Channel>>>,
 }
 
-async fn update_term<'a, 'b>(
-    guard: &'a mut MutexGuard<'b, RaftState>,
-    new_term: u64,
-    leader: Option<String>,
-) {
-    if guard.persistent_state.update_term(new_term) {
-        guard.role = Role::Follower(leader);
-    }
-}
-
 #[tonic::async_trait]
 impl RaftChat for MyRaftChat {
     async fn append_entries(
@@ -71,7 +61,8 @@ impl RaftChat for MyRaftChat {
                 success: false,
             }));
         }
-        update_term(&mut guard, args.term, Some(args.leader_id));
+        guard.persistent_state.update_term(args.term);
+        guard.role = Role::Follower(Some(args.leader_id));
         match guard
             .persistent_state
             .append_entries(args.prev_length, args.prev_term, &args.entries)
@@ -104,7 +95,9 @@ impl RaftChat for MyRaftChat {
                 vote_granted: false,
             }));
         }
-        update_term(&mut guard, args.term, None);
+        if guard.persistent_state.update_term(args.term) {
+            guard.role = Role::Follower(None);
+        }
         let vote_granted = guard.persistent_state.try_vote(&args.candidate_id);
         Ok(Response::new(RequestVoteRes {
             term: current_term,
