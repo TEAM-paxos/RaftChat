@@ -6,20 +6,21 @@ use tokio::time::sleep;
 
 struct RaftNode {
     config: RaftConfig,
-    commit_tx: mpsc::Sender<Entry>,
-    propose_rx: mpsc::Receiver<UserRequestArgs>,
+    log_tx: mpsc::Sender<Entry>,
+    req_rx: mpsc::Receiver<UserRequestArgs>,
     test_flag: bool,
     client_timestamp_map: std::collections::HashMap<String, u64>,
 }
 
-pub fn run_mock_raft(config: RaftConfig) -> (mpsc::Receiver<Entry>, mpsc::Sender<UserRequestArgs>) {
-    let (commit_tx, commit_rx) = mpsc::channel(15);
-    let (propose_tx, propose_rx) = mpsc::channel(15);
-
+pub fn run_mock_raft(
+    config: RaftConfig,
+    log_tx: mpsc::Sender<Entry>,
+    req_rx: mpsc::Receiver<UserRequestArgs>,
+) {
     let mut raft_node = RaftNode {
         config: config,
-        commit_tx: commit_tx,
-        propose_rx: propose_rx,
+        log_tx: log_tx,
+        req_rx: req_rx,
         test_flag: true,
         client_timestamp_map: std::collections::HashMap::new(),
     };
@@ -33,8 +34,6 @@ pub fn run_mock_raft(config: RaftConfig) -> (mpsc::Receiver<Entry>, mpsc::Sender
     //         raft_node.start().await;
     //     });
     // });
-
-    return (commit_rx, propose_tx);
 }
 
 impl RaftNode {
@@ -46,7 +45,7 @@ impl RaftNode {
 
         // [NOTE] This is a dummy implementation
         // echo back the data
-        while let Some(data) = self.propose_rx.recv().await {
+        while let Some(data) = self.req_rx.recv().await {
             //println!("[RAFT] Received data");
 
             sleep(Duration::from_secs(1)).await;
@@ -75,7 +74,7 @@ impl RaftNode {
                 data: data.data,
             };
 
-            self.commit_tx.send(value).await.unwrap();
+            self.log_tx.send(value).await.unwrap();
             idx += 1;
         }
 

@@ -79,12 +79,14 @@ async fn run_tasks(
     Sender<(String, data_model::msg::ClientMsg)>,
     Sender<(String, SplitSink<WebSocketStream<TcpStream>, Message>)>,
 ) {
-    let (commit_rx, database_tx) = if true {
+    let (log_tx, log_rx) = mpsc::channel(15);
+    let (req_tx, req_rx) = mpsc::channel(15);
+    if true {
         raft::mock_raft::run_mock_raft(raft::RaftConfig {
             serve_addr: SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8080),
             self_id: "server1".to_string(),
             peers: config.peers.clone(),
-        })
+        }, log_tx, req_rx)
     } else {
         // real implementation
         unimplemented!()
@@ -97,7 +99,7 @@ async fn run_tasks(
     ) = mpsc::channel(15);
 
     let writer = events::task::Writer::new(hash.clone());
-    writer.start(writer_rx, database_tx).await;
+    writer.start(writer_rx, req_tx).await;
 
     // publisher task
     let (pub_tx, pub_rx): (
@@ -106,7 +108,7 @@ async fn run_tasks(
     ) = mpsc::channel(15);
 
     let publisher = events::task::Publisher::new(Vec::new(), hash.clone());
-    publisher.start(commit_rx, pub_rx).await;
+    publisher.start(log_rx, pub_rx).await;
 
     return (writer_tx, pub_tx);
 }
