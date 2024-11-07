@@ -66,7 +66,6 @@ impl RaftChat for MyRaftChat {
         match guard
             .persistent_state
             .append_entries(args.prev_length, args.prev_term, &args.entries)
-            .await
         {
             None => Ok(Response::new(AppendEntriesRes {
                 term: current_term,

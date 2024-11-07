@@ -61,7 +61,7 @@ impl PersistentState {
     // return Some(l) if matched, where l is the length of guaranteed common prefix of
     //                      the log of the leader and the log of this node.
     // TODO : Do we need to define it as async function?
-    pub async fn append_entries(
+    pub fn append_entries(
         &mut self,
         prev_length: u64,
         prev_term: u64,
@@ -111,9 +111,9 @@ mod tests {
         }
     }
 
-    #[tokio::test]
+    #[test]
     #[rustfmt::skip]
-    async fn case_append() {
+    fn case_append() {
         let mut state = PersistentState {
             current_term: 0,
             voted_for: None,
@@ -133,8 +133,7 @@ mod tests {
                     mk_entry(4),
                     mk_entry(5),
                 ]
-            )
-            .await,
+            ),
             Some(5)
         );
         assert_eq!(
@@ -149,9 +148,9 @@ mod tests {
         );
     }
 
-    #[tokio::test]
+    #[test]
     #[rustfmt::skip]
-    async fn case_rewrite() {
+    fn case_rewrite() {
         let mut state = PersistentState {
             current_term: 0,
             voted_for: None,
@@ -170,8 +169,7 @@ mod tests {
                     mk_entry(4),
                     mk_entry(5),
                 ]
-            )
-            .await,
+            ),
             Some(4)
         );
         assert_eq!(
@@ -185,9 +183,9 @@ mod tests {
         );
     }
 
-    #[tokio::test]
+    #[test]
     #[rustfmt::skip]
-    async fn case_subsumed() {
+    fn case_subsumed() {
         let mut state = PersistentState {
             current_term: 0,
             voted_for: None,
@@ -205,8 +203,7 @@ mod tests {
                 &[
                     mk_entry(2),
                 ]
-            )
-            .await,
+            ),
             Some(2)
         );
         assert_eq!(
