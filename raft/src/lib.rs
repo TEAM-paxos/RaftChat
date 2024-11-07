@@ -1,7 +1,6 @@
-pub mod database;
 pub mod mock_raft;
+pub mod persistent_state;
 pub mod raftchat_tonic;
-pub mod wal;
 
 use std::cmp::{max, min};
 use std::collections::HashMap;
@@ -21,24 +20,22 @@ use raftchat_tonic::{UserRequestArgs, UserRequestRes};
 use tonic::transport::{Channel, Server};
 use tonic::{Request, Response, Status};
 
-use wal::WAL;
+use persistent_state::PersistentState;
 
-struct RaftConfig {
-    serve_addr: SocketAddr,
-    self_id: String,
-    peers: Vec<String>, // except self
+pub struct RaftConfig {
+    pub serve_addr: SocketAddr,
+    pub self_id: String,
+    pub peers: Vec<String>, // except self
 }
 
-enum Role {
+pub enum Role {
     Leader,
     Follower(Option<String>),
     Candidate,
 }
 
 pub struct RaftState {
-    current_term: u64,
-    log: WAL,
-    voted_for: Option<String>,
+    persistent_state: PersistentState,
     committed_length: u64,
     role: Role,
 }
@@ -49,18 +46,6 @@ pub struct MyRaftChat {
     connections: HashMap<String, Option<RaftChatClient<Channel>>>,
 }
 
-async fn update_term<'a, 'b>(
-    guard: &'a mut MutexGuard<'b, RaftState>,
-    new_term: u64,
-    leader: Option<String>,
-) {
-    if guard.current_term < new_term {
-        guard.current_term = new_term;
-        guard.role = Role::Follower(leader);
-        guard.voted_for = None;
-    }
-}
-
 #[tonic::async_trait]
 impl RaftChat for MyRaftChat {
     async fn append_entries(
@@ -69,26 +54,28 @@ impl RaftChat for MyRaftChat {
     ) -> Result<Response<AppendEntriesRes>, Status> {
         let args: AppendEntriesArgs = request.into_inner();
         let mut guard = self.state.lock().await;
-        if args.term < guard.current_term {
+        let current_term = guard.persistent_state.get_current_term();
+        if args.term < current_term {
             return Ok(Response::new(AppendEntriesRes {
-                term: guard.current_term,
+                term: current_term,
                 success: false,
             }));
         }
-        update_term(&mut guard, args.term, Some(args.leader_id));
+        guard.persistent_state.update_term(args.term);
+        guard.role = Role::Follower(Some(args.leader_id));
         match guard
-            .log
+            .persistent_state
             .append_entries(args.prev_length, args.prev_term, &args.entries)
             .await
         {
             None => Ok(Response::new(AppendEntriesRes {
-                term: guard.current_term,
+                term: current_term,
                 success: false,
             })),
             Some(l) => {
                 guard.committed_length = max(guard.committed_length, min(args.committed_length, l));
                 Ok(Response::new(AppendEntriesRes {
-                    term: guard.current_term,
+                    term: current_term,
                     success: true,
                 }))
             }
@@ -101,24 +88,20 @@ impl RaftChat for MyRaftChat {
     ) -> Result<Response<RequestVoteRes>, Status> {
         let args: RequestVoteArgs = request.into_inner();
         let mut guard = self.state.lock().await;
-        if args.term < guard.current_term {
+        let current_term = guard.persistent_state.get_current_term();
+        if args.term < current_term {
             return Ok(Response::new(RequestVoteRes {
-                term: guard.current_term,
+                term: current_term,
                 vote_granted: false,
             }));
         }
-        update_term(&mut guard, args.term, None);
-        let voted_granted = if guard.voted_for == None {
-            guard.voted_for = Some(args.candidate_id);
-            true
-        } else if guard.voted_for == Some(args.candidate_id) {
-            true
-        } else {
-            false
-        };
+        if guard.persistent_state.update_term(args.term) {
+            guard.role = Role::Follower(None);
+        }
+        let vote_granted = guard.persistent_state.try_vote(&args.candidate_id);
         Ok(Response::new(RequestVoteRes {
-            term: guard.current_term,
-            vote_granted: voted_granted,
+            term: current_term,
+            vote_granted: vote_granted,
         }))
     }
 
@@ -130,17 +113,22 @@ impl RaftChat for MyRaftChat {
     }
 }
 
-async fn start(config: RaftConfig) -> Result<(), Box<dyn std::error::Error>> {
-    let myraftchat: MyRaftChat = unimplemented!();
+pub fn run_raft(
+    config: RaftConfig,
+    log_tx: mpsc::Sender<Entry>,
+    req_rx: mpsc::Receiver<UserRequestArgs>,
+) {
+    let raft_chat = MyRaftChat {
+        config: config,
+        state: unimplemented!(),
+        connections: unimplemented!(),
+    };
 
-    Server::builder()
-        .add_service(RaftChatServer::new(myraftchat))
-        .serve(config.serve_addr)
-        .await?;
+    let rpc_future = Server::builder()
+        .add_service(RaftChatServer::new(raft_chat))
+        .serve(config.serve_addr);
 
-    // for peer in config.peers {
-    //     let mut client: RaftChatClient<Channel> = RaftChatClient::connect(peer).await?;
-    // }
-
-    Ok(())
+    tokio::spawn(async move {
+        rpc_future.await.unwrap();
+    });
 }

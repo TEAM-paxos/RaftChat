@@ -1,59 +1,39 @@
-use crate::database::DB;
-use crate::raftchat_tonic::{Entry, UserRequestArgs};
+use crate::raftchat_tonic::{Command, Entry, UserRequestArgs};
+use crate::RaftConfig;
 use std::time::Duration;
 use tokio::sync::mpsc;
 use tokio::time::sleep;
 
-pub struct Raft {}
-
-struct RaftConfig {
-    id: u64,
-    peers: Vec<String>,
-}
-
 struct RaftNode {
-    id: u64,
     config: RaftConfig,
-    commit_tx: mpsc::Sender<Entry>,
-    propose_rx: mpsc::Receiver<UserRequestArgs>,
+    log_tx: mpsc::Sender<Entry>,
+    req_rx: mpsc::Receiver<UserRequestArgs>,
     test_flag: bool,
     client_timestamp_map: std::collections::HashMap<String, u64>,
 }
 
-impl DB for Raft {
-    // return a new commit channel
-    fn make_channel(
-        &self,
-        id: u64,
-        peers: Vec<String>,
-    ) -> (mpsc::Receiver<Entry>, mpsc::Sender<UserRequestArgs>) {
-        let (commit_tx, commit_rx) = mpsc::channel(15);
-        let (propose_tx, propose_rx) = mpsc::channel(15);
+pub fn run_mock_raft(
+    config: RaftConfig,
+    log_tx: mpsc::Sender<Entry>,
+    req_rx: mpsc::Receiver<UserRequestArgs>,
+) {
+    let mut raft_node = RaftNode {
+        config: config,
+        log_tx: log_tx,
+        req_rx: req_rx,
+        test_flag: true,
+        client_timestamp_map: std::collections::HashMap::new(),
+    };
 
-        let mut raft_node = RaftNode {
-            id: id,
-            config: RaftConfig {
-                id: id,
-                peers: peers,
-            },
-            commit_tx: commit_tx,
-            propose_rx: propose_rx,
-            test_flag: true,
-            client_timestamp_map: std::collections::HashMap::new(),
-        };
+    tokio::spawn(async move {
+        raft_node.start().await;
+    });
 
-        tokio::spawn(async move {
-            raft_node.start().await;
-        });
-
-        // tokio::task::spawn_blocking(move || {
-        //     tokio::runtime::Handle::current().block_on(async {
-        //         raft_node.start().await;
-        //     });
-        // });
-
-        return (commit_rx, propose_tx);
-    }
+    // tokio::task::spawn_blocking(move || {
+    //     tokio::runtime::Handle::current().block_on(async {
+    //         raft_node.start().await;
+    //     });
+    // });
 }
 
 impl RaftNode {
@@ -61,11 +41,22 @@ impl RaftNode {
         //println!("Starting Raft server with id: {}", self.id);
 
         let mut idx = 0;
-        let mut drop = 3;
+        let mut drop: i32 = 3;
 
         // [NOTE] This is a dummy implementation
         // echo back the data
-        while let Some(data) = self.propose_rx.recv().await {
+        while let Some(data) = self.req_rx.recv().await {
+            // no op test
+            if idx == 5 {
+                let value = Entry {
+                    term: 0,
+                    command: None,
+                };
+
+                self.log_tx.send(value).await.unwrap();
+                idx += 1;
+            }
+
             //println!("[RAFT] Received data");
 
             sleep(Duration::from_secs(1)).await;
@@ -89,12 +80,14 @@ impl RaftNode {
 
             let value = Entry {
                 term: 0,
-                client_id: data.client_id,
-                message_id: data.message_id,
-                data: data.data,
+                command: Some(Command {
+                    client_id: data.client_id,
+                    message_id: data.message_id,
+                    data: data.data,
+                }),
             };
 
-            self.commit_tx.send(value).await.unwrap();
+            self.log_tx.send(value).await.unwrap();
             idx += 1;
         }
 

@@ -2,11 +2,10 @@ use axum::Extension;
 use axum::{routing::get, Router};
 use futures_util::stream::SplitSink;
 use log::info;
-use raft::database;
 use raft::mock_raft;
 use std::collections::HashMap;
 use std::env;
-use std::net::SocketAddr;
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::Arc;
 use tokio::net::TcpListener;
 use tokio::net::TcpStream;
@@ -77,15 +76,25 @@ async fn run_axum(config: &Config) {
 
 // - make channel from Database like raft or sync db
 // - start server read write tasks
-async fn run_tasks<T: database::DB>(
-    db: T,
+async fn run_tasks(
     hash: Arc<tokio::sync::Mutex<HashMap<String, u64>>>,
     config: &Config,
 ) -> (
     Sender<(String, data_model::msg::ClientMsg)>,
     Sender<(String, SplitSink<WebSocketStream<TcpStream>, Message>)>,
 ) {
-    let (commit_rx, database_tx) = db.make_channel(1, config.peers.clone());
+    let raft_config = raft::RaftConfig {
+        serve_addr: SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8080),
+        self_id: "server1".to_string(),
+        peers: config.peers.clone(),
+    };
+    let (log_tx, log_rx) = mpsc::channel(15);
+    let (req_tx, req_rx) = mpsc::channel(15);
+    if true {
+        raft::mock_raft::run_mock_raft(raft_config, log_tx, req_rx)
+    } else {
+        raft::run_raft(raft_config, log_tx, req_rx)
+    };
 
     // writer task
     let (writer_tx, writer_rx): (
@@ -94,7 +103,7 @@ async fn run_tasks<T: database::DB>(
     ) = mpsc::channel(15);
 
     let writer = events::task::Writer::new(hash.clone());
-    writer.start(writer_rx, database_tx).await;
+    writer.start(writer_rx, req_tx).await;
 
     // publisher task
     let (pub_tx, pub_rx): (
@@ -103,7 +112,7 @@ async fn run_tasks<T: database::DB>(
     ) = mpsc::channel(15);
 
     let publisher = events::task::Publisher::new(Vec::new(), hash.clone());
-    publisher.start(commit_rx, pub_rx).await;
+    publisher.start(log_rx, pub_rx).await;
 
     return (writer_tx, pub_tx);
 }
@@ -120,7 +129,7 @@ async fn main() {
     let client_commit_idx: Arc<tokio::sync::Mutex<HashMap<String, u64>>> =
         Arc::new(tokio::sync::Mutex::new(HashMap::new()));
 
-    let (writer_tx, pub_tx) = run_tasks(mock_raft::Raft {}, client_commit_idx, &config).await;
+    let (writer_tx, pub_tx) = run_tasks(client_commit_idx, &config).await;
 
     // websocket server
     let addr = SocketAddr::from(([0, 0, 0, 0], config.socket_port));

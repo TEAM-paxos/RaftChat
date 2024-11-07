@@ -29,6 +29,32 @@ pub struct Msg {
     time_stamp: u64,
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct LogData {
+    content: String,
+    time: DateTime<Utc>,
+    user_id: String,
+}
+
+impl LogData {
+    pub fn new(user_id: String, content: String, time: DateTime<Utc>) -> Self {
+        LogData {
+            content: content,
+            time: time,
+            user_id: user_id,
+        }
+    }
+    pub fn get_content(&self) -> String {
+        self.content.clone()
+    }
+    pub fn get_time(&self) -> DateTime<Utc> {
+        self.time
+    }
+    pub fn get_user_id(&self) -> String {
+        self.user_id.clone()
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone)]
 pub struct ServerMsg {
     committed_index: u64,
@@ -46,6 +72,21 @@ impl ClientMsg {
 }
 
 impl Msg {
+    pub fn new(
+        id: String,
+        user_id: String,
+        content: String,
+        time: DateTime<Utc>,
+        time_stamp: u64,
+    ) -> Self {
+        Msg {
+            id: id,
+            user_id: user_id,
+            content: content,
+            time: time,
+            time_stamp: time_stamp,
+        }
+    }
     pub fn get_uid(&self) -> String {
         self.user_id.clone()
     }

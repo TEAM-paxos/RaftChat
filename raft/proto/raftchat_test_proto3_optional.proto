@@ -7,11 +7,15 @@ service RaftChat {
   rpc UserRequest(UserRequestArgs) returns (UserRequestRes);
 }
 
+message Command {
+  string client_id = 1;
+  uint64 message_id = 2;
+  bytes data = 3;
+}
+
 message Entry {
   uint64 term = 1;
-  string client_id = 2;
-  uint64 message_id = 3;
-  bytes data = 4;
+  optional Command command = 2;
 }
 
 message AppendEntriesArgs {

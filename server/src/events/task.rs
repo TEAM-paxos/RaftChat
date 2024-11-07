@@ -1,10 +1,12 @@
-use crate::data_model::msg::{ClientMsg, Msg, ServerMsg};
+use crate::data_model::msg::{ClientMsg, LogData, Msg, ServerMsg};
+use chrono::Local;
 use futures_util::stream::SplitSink;
 use futures_util::SinkExt;
-use log::{debug, info};
-use raft::raftchat_tonic::{Entry, UserRequestArgs};
+use log::{debug, info, Log};
+use raft::raftchat_tonic::{Command, Entry, UserRequestArgs};
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::u64;
 use tokio::net::TcpStream;
 use tokio::sync::mpsc::Receiver;
 use tokio::time::{self, Duration};
@@ -82,7 +84,31 @@ impl Publisher {
 
                 // [Warn] type error
                 let raft_commit_idx = state_machine.lock().await.len() as u64;
-                let c_msg: Msg = bincode::deserialize(&commit.data).unwrap();
+                let c_msg;
+
+                match commit.command {
+                    Some(cmd) => {
+                        let log_data: LogData = bincode::deserialize(&cmd.data).unwrap();
+                        c_msg = Msg::new(
+                            cmd.client_id,
+                            log_data.get_user_id(),
+                            log_data.get_content(),
+                            log_data.get_time(),
+                            cmd.message_id,
+                        );
+                    }
+                    None => {
+                        // no-op
+                        c_msg = Msg::new(
+                            String::from("raft"),
+                            String::from("raft"),
+                            String::from("no-op"),
+                            Local::now().into(),
+                            u64::MAX,
+                        );
+                    }
+                }
+
                 state_machine.lock().await.push(c_msg);
                 let mut delete_candidates = Vec::new();
 
@@ -311,14 +337,16 @@ impl Writer {
                 for msg in messages.iter() {
                     info!(
                         "Sending to Raft: {:?} : {:?}",
-                        msg.get_uid(),
+                        msg.get_id(),
                         msg.get_content()
                     );
 
+                    let log_data = LogData::new(msg.get_id(), msg.get_content(), msg.get_time());
+
                     let req = UserRequestArgs {
-                        client_id: msg.get_uid(),
+                        client_id: msg.get_id(),
                         message_id: msg.get_time_stamp(),
-                        data: bincode::serialize(msg).unwrap(),
+                        data: bincode::serialize(&log_data).unwrap(),
                     };
 
                     raft_tx.send(req).await.unwrap();
