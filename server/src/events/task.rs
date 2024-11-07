@@ -82,7 +82,10 @@ impl Publisher {
 
                 // [Warn] type error
                 let raft_commit_idx = state_machine.lock().await.len() as u64;
-                let c_msg: Msg = bincode::deserialize(&commit.data).unwrap();
+                let Some(cmd) = commit.command else {
+                    continue;
+                };
+                let c_msg: Msg = bincode::deserialize(&cmd.data).unwrap();
                 state_machine.lock().await.push(c_msg);
                 let mut delete_candidates = Vec::new();
 

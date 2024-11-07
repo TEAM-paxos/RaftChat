@@ -1,4 +1,4 @@
-use crate::raftchat_tonic::{Entry, UserRequestArgs};
+use crate::raftchat_tonic::{Command, Entry, UserRequestArgs};
 use crate::RaftConfig;
 use std::time::Duration;
 use tokio::sync::mpsc;
@@ -69,9 +69,11 @@ impl RaftNode {
 
             let value = Entry {
                 term: 0,
-                client_id: data.client_id,
-                message_id: data.message_id,
-                data: data.data,
+                command: Some(Command {
+                    client_id: data.client_id,
+                    message_id: data.message_id,
+                    data: data.data,
+                }),
             };
 
             self.log_tx.send(value).await.unwrap();

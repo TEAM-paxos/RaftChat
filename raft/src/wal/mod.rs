@@ -53,15 +53,17 @@ impl WAL {
 #[cfg(test)]
 mod tests {
 
-    use crate::raftchat_tonic::Entry;
+    use crate::raftchat_tonic::{Command, Entry};
     use crate::WAL;
 
     fn mk_entry(term: u64) -> Entry {
         Entry {
             term: term,
-            client_id: "client1".to_string(),
-            message_id: 0,
-            data: vec![],
+            command: Some(Command {
+                client_id: "client1".to_string(),
+                message_id: 0,
+                data: vec![],
+            }),
         }
     }
 
