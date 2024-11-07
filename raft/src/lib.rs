@@ -129,17 +129,22 @@ impl RaftChat for MyRaftChat {
     }
 }
 
-async fn start(config: RaftConfig) -> Result<(), Box<dyn std::error::Error>> {
-    let myraftchat: MyRaftChat = unimplemented!();
+pub fn run_raft(
+    config: RaftConfig,
+    log_tx: mpsc::Sender<Entry>,
+    req_rx: mpsc::Receiver<UserRequestArgs>,
+) {
+    let raft_chat = MyRaftChat {
+        config: config,
+        state: unimplemented!(),
+        connections: unimplemented!(),
+    };
 
-    Server::builder()
-        .add_service(RaftChatServer::new(myraftchat))
-        .serve(config.serve_addr)
-        .await?;
+    let rpc_future = Server::builder()
+        .add_service(RaftChatServer::new(raft_chat))
+        .serve(config.serve_addr);
 
-    // for peer in config.peers {
-    //     let mut client: RaftChatClient<Channel> = RaftChatClient::connect(peer).await?;
-    // }
-
-    Ok(())
+    tokio::spawn(async move {
+        rpc_future.await.unwrap();
+    });
 }

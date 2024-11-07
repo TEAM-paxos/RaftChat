@@ -79,17 +79,17 @@ async fn run_tasks(
     Sender<(String, data_model::msg::ClientMsg)>,
     Sender<(String, SplitSink<WebSocketStream<TcpStream>, Message>)>,
 ) {
+    let raft_config = raft::RaftConfig {
+        serve_addr: SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8080),
+        self_id: "server1".to_string(),
+        peers: config.peers.clone(),
+    };
     let (log_tx, log_rx) = mpsc::channel(15);
     let (req_tx, req_rx) = mpsc::channel(15);
     if true {
-        raft::mock_raft::run_mock_raft(raft::RaftConfig {
-            serve_addr: SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8080),
-            self_id: "server1".to_string(),
-            peers: config.peers.clone(),
-        }, log_tx, req_rx)
+        raft::mock_raft::run_mock_raft(raft_config, log_tx, req_rx)
     } else {
-        // real implementation
-        unimplemented!()
+        raft::run_raft(raft_config, log_tx, req_rx)
     };
 
     // writer task
