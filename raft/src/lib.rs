@@ -71,8 +71,11 @@ impl RaftChat for MyRaftChat {
                 term: current_term,
                 success: false,
             })),
-            Some(l) => {
-                guard.committed_length = max(guard.committed_length, min(args.committed_length, l));
+            Some(compatible_length) => {
+                guard.committed_length = max(
+                    guard.committed_length,
+                    min(args.committed_length, compatible_length),
+                );
                 Ok(Response::new(AppendEntriesRes {
                     term: current_term,
                     success: true,

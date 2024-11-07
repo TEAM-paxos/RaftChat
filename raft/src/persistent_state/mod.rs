@@ -70,24 +70,34 @@ impl PersistentState {
         if self.log.len() < prev_length as usize {
             None
         } else if (prev_length == 0) || (self.log[prev_length as usize - 1].term == prev_term) {
-            // compatiable_length = prev_length <= self.log.len()
-            let mut compatible_length: usize = prev_length as usize;
-            let mut entries: &[Entry] = entries;
-            while let [entry, entries_suffix @ ..] = entries {
-                if compatible_length < self.log.len() {
-                    if self.log[compatible_length].term == entry.term {
-                        compatible_length += 1;
-                        entries = entries_suffix;
-                        continue;
-                    } else {
-                        self.log.truncate(compatible_length);
+            // calculate action to perform
+            let action: Option<(usize, &[Entry])> = {
+                let mut l: usize = prev_length as usize;
+                let mut entries: &[Entry] = entries;
+                loop {
+                    match entries {
+                        [entries_head, entries_tail @ ..] => {
+                            if (l < self.log.len()) && (self.log[l].term == entries_head.term) {
+                                l += 1;
+                                entries = entries_tail;
+                                continue;
+                            } else {
+                                break Some((l, entries));
+                            }
+                        }
+                        [] => break None,
                     }
                 }
+            };
+
+            // apply action to the log
+            if let Some((l, entries)) = action {
+                self.log.truncate(l);
                 self.log.extend_from_slice(entries);
-                compatible_length += entries.len();
-                break;
-            }
-            Some(compatible_length as u64)
+            };
+
+            // compatible length
+            Some(prev_length + entries.len() as u64)
         } else {
             None
         }
