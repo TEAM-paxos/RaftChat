@@ -41,11 +41,22 @@ impl RaftNode {
         //println!("Starting Raft server with id: {}", self.id);
 
         let mut idx = 0;
-        let mut drop = 3;
+        let mut drop: i32 = 3;
 
         // [NOTE] This is a dummy implementation
         // echo back the data
         while let Some(data) = self.req_rx.recv().await {
+            // no op test
+            if idx == 5 {
+                let value = Entry {
+                    term: 0,
+                    command: None,
+                };
+
+                self.log_tx.send(value).await.unwrap();
+                idx += 1;
+            }
+
             //println!("[RAFT] Received data");
 
             sleep(Duration::from_secs(1)).await;

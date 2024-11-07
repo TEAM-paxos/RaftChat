@@ -97,8 +97,8 @@ impl PersistentState {
 #[cfg(test)]
 mod tests {
 
-    use crate::raftchat_tonic::{Command, Entry};
     use crate::persistent_state::PersistentState;
+    use crate::raftchat_tonic::{Command, Entry};
 
     fn mk_entry(term: u64) -> Entry {
         Entry {
