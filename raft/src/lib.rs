@@ -1,4 +1,3 @@
-pub mod database;
 pub mod mock_raft;
 pub mod raftchat_tonic;
 pub mod wal;

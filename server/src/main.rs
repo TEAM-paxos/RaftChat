@@ -2,7 +2,6 @@ use axum::Extension;
 use axum::{routing::get, Router};
 use futures_util::stream::SplitSink;
 use log::info;
-use raft::database;
 use raft::mock_raft;
 use std::collections::HashMap;
 use std::env;
@@ -73,15 +72,19 @@ async fn run_axum(config: &Config) {
 
 // - make channel from Database like raft or sync db
 // - start server read write tasks
-async fn run_tasks<T: database::DB>(
-    db: T,
+async fn run_tasks(
     hash: Arc<tokio::sync::Mutex<HashMap<String, u64>>>,
     config: &Config,
 ) -> (
     Sender<(String, data_model::msg::ClientMsg)>,
     Sender<(String, SplitSink<WebSocketStream<TcpStream>, Message>)>,
 ) {
-    let (commit_rx, database_tx) = db.make_channel(1, config.peers.clone());
+    let (commit_rx, database_tx) = if true {
+        raft::mock_raft::run_mock_raft(1, config.peers.clone())
+    } else {
+        // real implementation
+        unimplemented!()
+    };
 
     // writer task
     let (writer_tx, writer_rx): (
@@ -116,7 +119,7 @@ async fn main() {
     let client_commit_idx: Arc<tokio::sync::Mutex<HashMap<String, u64>>> =
         Arc::new(tokio::sync::Mutex::new(HashMap::new()));
 
-    let (writer_tx, pub_tx) = run_tasks(mock_raft::Raft {}, client_commit_idx, &config).await;
+    let (writer_tx, pub_tx) = run_tasks(client_commit_idx, &config).await;
 
     // websocket server
     let addr = SocketAddr::from(([0, 0, 0, 0], config.socket_port));

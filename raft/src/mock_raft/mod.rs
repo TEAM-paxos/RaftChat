@@ -1,10 +1,7 @@
-use crate::database::DB;
 use crate::raftchat_tonic::{Entry, UserRequestArgs};
 use std::time::Duration;
 use tokio::sync::mpsc;
 use tokio::time::sleep;
-
-pub struct Raft {}
 
 struct RaftConfig {
     id: u64,
@@ -20,40 +17,36 @@ struct RaftNode {
     client_timestamp_map: std::collections::HashMap<String, u64>,
 }
 
-impl DB for Raft {
-    // return a new commit channel
-    fn make_channel(
-        &self,
-        id: u64,
-        peers: Vec<String>,
-    ) -> (mpsc::Receiver<Entry>, mpsc::Sender<UserRequestArgs>) {
-        let (commit_tx, commit_rx) = mpsc::channel(15);
-        let (propose_tx, propose_rx) = mpsc::channel(15);
+pub fn run_mock_raft(
+    id: u64,
+    peers: Vec<String>,
+) -> (mpsc::Receiver<Entry>, mpsc::Sender<UserRequestArgs>) {
+    let (commit_tx, commit_rx) = mpsc::channel(15);
+    let (propose_tx, propose_rx) = mpsc::channel(15);
 
-        let mut raft_node = RaftNode {
+    let mut raft_node = RaftNode {
+        id: id,
+        config: RaftConfig {
             id: id,
-            config: RaftConfig {
-                id: id,
-                peers: peers,
-            },
-            commit_tx: commit_tx,
-            propose_rx: propose_rx,
-            test_flag: true,
-            client_timestamp_map: std::collections::HashMap::new(),
-        };
+            peers: peers,
+        },
+        commit_tx: commit_tx,
+        propose_rx: propose_rx,
+        test_flag: true,
+        client_timestamp_map: std::collections::HashMap::new(),
+    };
 
-        tokio::spawn(async move {
-            raft_node.start().await;
-        });
+    tokio::spawn(async move {
+        raft_node.start().await;
+    });
 
-        // tokio::task::spawn_blocking(move || {
-        //     tokio::runtime::Handle::current().block_on(async {
-        //         raft_node.start().await;
-        //     });
-        // });
+    // tokio::task::spawn_blocking(move || {
+    //     tokio::runtime::Handle::current().block_on(async {
+    //         raft_node.start().await;
+    //     });
+    // });
 
-        return (commit_rx, propose_tx);
-    }
+    return (commit_rx, propose_tx);
 }
 
 impl RaftNode {
