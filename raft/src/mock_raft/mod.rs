@@ -1,15 +1,10 @@
 use crate::raftchat_tonic::{Entry, UserRequestArgs};
+use crate::RaftConfig;
 use std::time::Duration;
 use tokio::sync::mpsc;
 use tokio::time::sleep;
 
-struct RaftConfig {
-    id: u64,
-    peers: Vec<String>,
-}
-
 struct RaftNode {
-    id: u64,
     config: RaftConfig,
     commit_tx: mpsc::Sender<Entry>,
     propose_rx: mpsc::Receiver<UserRequestArgs>,
@@ -17,19 +12,12 @@ struct RaftNode {
     client_timestamp_map: std::collections::HashMap<String, u64>,
 }
 
-pub fn run_mock_raft(
-    id: u64,
-    peers: Vec<String>,
-) -> (mpsc::Receiver<Entry>, mpsc::Sender<UserRequestArgs>) {
+pub fn run_mock_raft(config: RaftConfig) -> (mpsc::Receiver<Entry>, mpsc::Sender<UserRequestArgs>) {
     let (commit_tx, commit_rx) = mpsc::channel(15);
     let (propose_tx, propose_rx) = mpsc::channel(15);
 
     let mut raft_node = RaftNode {
-        id: id,
-        config: RaftConfig {
-            id: id,
-            peers: peers,
-        },
+        config: config,
         commit_tx: commit_tx,
         propose_rx: propose_rx,
         test_flag: true,

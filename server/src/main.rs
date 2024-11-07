@@ -5,7 +5,7 @@ use log::info;
 use raft::mock_raft;
 use std::collections::HashMap;
 use std::env;
-use std::net::SocketAddr;
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::Arc;
 use tokio::net::TcpListener;
 use tokio::net::TcpStream;
@@ -80,7 +80,11 @@ async fn run_tasks(
     Sender<(String, SplitSink<WebSocketStream<TcpStream>, Message>)>,
 ) {
     let (commit_rx, database_tx) = if true {
-        raft::mock_raft::run_mock_raft(1, config.peers.clone())
+        raft::mock_raft::run_mock_raft(raft::RaftConfig {
+            serve_addr: SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8080),
+            self_id: "server1".to_string(),
+            peers: config.peers.clone(),
+        })
     } else {
         // real implementation
         unimplemented!()

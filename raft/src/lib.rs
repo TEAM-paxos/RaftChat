@@ -22,13 +22,13 @@ use tonic::{Request, Response, Status};
 
 use wal::WAL;
 
-struct RaftConfig {
-    serve_addr: SocketAddr,
-    self_id: String,
-    peers: Vec<String>, // except self
+pub struct RaftConfig {
+    pub serve_addr: SocketAddr,
+    pub self_id: String,
+    pub peers: Vec<String>, // except self
 }
 
-enum Role {
+pub enum Role {
     Leader,
     Follower(Option<String>),
     Candidate,
