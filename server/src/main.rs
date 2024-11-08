@@ -87,6 +87,8 @@ async fn run_tasks(
         serve_addr: SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8080),
         self_id: "server1".to_string(),
         peers: config.peers.clone(),
+        timeout_duration: tokio::time::Duration::from_millis(1000),
+        persistent_state_path: std::path::Path::new("TODO : path to persistent_state"),
     };
     let (log_tx, log_rx) = mpsc::channel(15);
     let (req_tx, req_rx) = mpsc::channel(15);

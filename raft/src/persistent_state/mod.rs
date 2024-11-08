@@ -2,6 +2,7 @@
 
 use crate::raftchat_tonic::Entry;
 use atomic_write_file::AtomicWriteFile;
+use std::path::Path;
 
 pub struct PersistentState {
     // These data must be stored on persistent storage
@@ -11,7 +12,7 @@ pub struct PersistentState {
 }
 
 impl PersistentState {
-    pub fn new(path: String) -> PersistentState {
+    pub fn new(path: &Path) -> PersistentState {
         // TODO : initialize with data from path
         PersistentState {
             current_term: 0,
