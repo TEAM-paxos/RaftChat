@@ -8,7 +8,7 @@ use std::net::SocketAddr;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::mpsc;
+use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::sync::{Mutex, MutexGuard};
 use tokio::task;
 use tokio::time;
@@ -25,6 +25,8 @@ use tonic::{Request, Response, Status};
 
 use persistent_state::PersistentState;
 
+use tokio_util::task::AbortOnDropHandle;
+
 pub struct RaftConfig {
     pub serve_addr: SocketAddr,
     pub self_id: String,
@@ -33,10 +35,25 @@ pub struct RaftConfig {
     pub persistent_state_path: &'static Path,
 }
 
+pub struct LeaderState {
+    heartbeat_handle: AbortOnDropHandle<()>,
+    next_index: HashMap<String, u64>,
+    match_length: HashMap<String, u64>,
+}
+
+pub struct FollowerState {
+    current_leader: Option<String>,
+    election_handle: AbortOnDropHandle<()>,
+}
+
+pub struct CandidateState {
+    election_handle: AbortOnDropHandle<()>,
+}
+
 pub enum Role {
-    Leader,
-    Follower(Option<String>),
-    Candidate,
+    Leader(LeaderState),
+    Follower(FollowerState),
+    Candidate(CandidateState),
 }
 
 pub struct RaftState {
@@ -47,8 +64,8 @@ pub struct RaftState {
 
 pub struct MyRaftChat {
     config: RaftConfig,
-    state: Mutex<RaftState>,
-    election_handle: Mutex<Option<task::JoinHandle<()>>>,
+    state: Mutex<RaftState>,                 // mutex 0
+    log_sender: Mutex<(u64, Sender<Entry>)>, // mutex 1
     connections: HashMap<String, Option<RaftChatClient<Channel>>>,
 }
 
@@ -56,7 +73,9 @@ impl MyRaftChat {
     async fn election_after_timeout(self: Arc<Self>, t: time::Duration) {
         time::sleep(t).await;
         let mut guard = self.state.lock().await;
-        guard.role = Role::Candidate;
+        // TODO : increment term
+        guard.role = Role::Candidate(unimplemented!());
+        // TODO : reset election_handle
         // TODO : start election
     }
 }
@@ -77,7 +96,11 @@ impl RaftChat for MyRaftChat {
             }));
         }
         guard.persistent_state.update_term(args.term);
-        guard.role = Role::Follower(Some(args.leader_id));
+        // TODO : reset election_handle
+        guard.role = Role::Follower(FollowerState {
+            current_leader: Some(args.leader_id),
+            election_handle: unimplemented!(),
+        });
         match guard
             .persistent_state
             .append_entries(args.prev_length, args.prev_term, &args.entries)
@@ -91,6 +114,7 @@ impl RaftChat for MyRaftChat {
                     guard.committed_length,
                     min(args.committed_length, compatible_length),
                 );
+                // TODO : send committed logs
                 Ok(Response::new(AppendEntriesRes {
                     term: current_term,
                     success: true,
@@ -113,7 +137,7 @@ impl RaftChat for MyRaftChat {
             }));
         }
         if guard.persistent_state.update_term(args.term) {
-            guard.role = Role::Follower(None);
+            guard.role = Role::Follower(unimplemented!());
         }
         let vote_granted = guard.persistent_state.try_vote(&args.candidate_id);
         Ok(Response::new(RequestVoteRes {
@@ -130,11 +154,7 @@ impl RaftChat for MyRaftChat {
     }
 }
 
-pub fn run_raft(
-    config: RaftConfig,
-    log_tx: mpsc::Sender<Entry>,
-    req_rx: mpsc::Receiver<UserRequestArgs>,
-) {
+pub fn run_raft(config: RaftConfig, log_tx: Sender<Entry>, req_rx: Receiver<UserRequestArgs>) {
     let serve_addr = config.serve_addr;
     let timeout_duration = config.timeout_duration;
     let persistent_state_path = config.persistent_state_path;
@@ -143,15 +163,21 @@ pub fn run_raft(
         state: Mutex::new(RaftState {
             persistent_state: PersistentState::new(persistent_state_path),
             committed_length: 0,
-            role: Role::Follower(None),
+            role: Role::Follower(FollowerState {
+                current_leader: None,
+                election_handle: AbortOnDropHandle::new(task::spawn(async {})),
+            }),
         }),
-        election_handle: Mutex::new(None),
+        log_sender: Mutex::new((0, log_tx)),
         connections: HashMap::new(),
     });
 
-    *raft_chat.election_handle.blocking_lock() = Some(task::spawn(
-        raft_chat.clone().election_after_timeout(timeout_duration),
-    ));
+    raft_chat.state.blocking_lock().role = Role::Follower(FollowerState {
+        current_leader: None,
+        election_handle: AbortOnDropHandle::new(task::spawn(
+            raft_chat.clone().election_after_timeout(timeout_duration),
+        )),
+    });
 
     let rpc_future = Server::builder()
         .add_service(RaftChatServer::from_arc(raft_chat))

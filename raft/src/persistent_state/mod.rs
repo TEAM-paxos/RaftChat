@@ -61,7 +61,6 @@ impl PersistentState {
     // return None    if not matched
     // return Some(l) if matched, where l is the length of guaranteed common prefix of
     //                      the log of the leader and the log of this node.
-    // TODO : Do we need to define it as async function?
     pub fn append_entries(
         &mut self,
         prev_length: u64,
