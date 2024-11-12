@@ -29,30 +29,46 @@ impl PersistentState {
         return self.voted_for.clone();
     }
 
+    // Dummy implementation
+    pub fn increment_term(&mut self) {
+        self.current_term = self.current_term + 1;
+    }
+
     // Dummy implementation.
-    // return false if no update occured
+    // return (current_term, ok)
+    //   current_term : term number after update
+    //   ok : true if the given term was not outdated
     // return true  if updated
-    pub fn update_term(&mut self, new_term: u64) -> bool {
-        if self.current_term < new_term {
+    pub fn update_term(&mut self, new_term: u64) -> (u64, bool) {
+        if new_term < self.current_term {
+            (self.current_term, false)
+        } else {
             // Warning : this two updates must be committed simultaneously
             self.current_term = new_term;
             self.voted_for = None;
-            true
-        } else {
-            false
+            (self.current_term, true)
         }
     }
 
     // Dummy implementation
-    // return false if vote not granted
-    // return true  if vote granted
-    pub fn try_vote(&mut self, candidate: &String) -> bool {
-        match &self.voted_for {
-            None => {
-                self.voted_for = Some(candidate.clone());
-                true
+    // return (current_term, ok)
+    //   current_term : term number after update
+    //   ok : true if candidate received a vote
+    pub fn try_vote(&mut self, new_term: u64, candidate: &String) -> (u64, bool) {
+        if new_term < self.current_term {
+            (self.current_term, false)
+        } else if self.current_term < new_term {
+            self.current_term = new_term;
+            self.voted_for = Some(candidate.clone());
+            (self.current_term, true)
+        } else {
+            match &self.voted_for {
+                None => {
+                    self.voted_for = Some(candidate.clone());
+                    (self.current_term, true)
+                }
+                Some(recipient) => (self.current_term, recipient == candidate),
             }
-            Some(recipient) => recipient == candidate,
         }
     }
 
