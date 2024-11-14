@@ -94,6 +94,7 @@ async fn run_tasks(
         timeout_duration: tokio::time::Duration::from_millis(1000),
         heartbeat_duration: tokio::time::Duration::from_millis(500),
         persistent_state_path: std::path::Path::new("TODO : path to persistent_state"),
+        wal_path: std::path::Path::new("TODO : path to wal"),
     };
     let (log_tx, log_rx) = mpsc::channel(15);
     let (req_tx, req_rx) = mpsc::channel(15);

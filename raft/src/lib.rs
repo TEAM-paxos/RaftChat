@@ -1,6 +1,8 @@
 pub mod mock_raft;
 pub mod persistent_state;
 pub mod raftchat_tonic;
+pub mod state_machine;
+pub mod wal;
 
 use std::cmp::{max, min};
 use std::collections::HashMap;
@@ -8,7 +10,7 @@ use std::net::SocketAddr;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::mpsc::{Receiver, Sender};
+use tokio::sync::{mpsc, oneshot};
 use tokio::sync::{Mutex, OwnedMutexGuard};
 use tokio::task;
 use tokio::time;
@@ -24,6 +26,8 @@ use tonic::transport::{Channel, Server};
 use tonic::{Request, Response, Status};
 
 use persistent_state::PersistentState;
+use state_machine::{SMWrapper, UserMessageIdMap};
+use wal::WAL;
 
 use tokio_util::task::AbortOnDropHandle;
 
@@ -34,6 +38,7 @@ pub struct RaftConfig {
     pub timeout_duration: Duration,
     pub heartbeat_duration: Duration,
     pub persistent_state_path: &'static Path,
+    pub wal_path: &'static Path,
 }
 
 impl RaftConfig {
@@ -46,6 +51,8 @@ pub struct LeaderState {
     heartbeat_handle: AbortOnDropHandle<()>,
     next_index: HashMap<&'static str, u64>,
     match_length: HashMap<&'static str, u64>,
+    // NB : alarm false to senders when dropping LeaderState
+    commit_alarm: Vec<(u64, oneshot::Sender<bool>)>,
 }
 
 pub struct FollowerState {
@@ -66,10 +73,11 @@ pub enum Role {
 
 pub struct RaftState {
     persistent_state: PersistentState,
+    sm: SMWrapper<UserMessageIdMap>,
     committed_length: u64,
     role: Role,
     sent_length: u64,
-    log_sender: Sender<Entry>,
+    log_sender: mpsc::Sender<Entry>,
     connections: HashMap<&'static str, RaftChatClient<Channel>>,
 }
 
@@ -139,7 +147,7 @@ impl RaftChat for MyRaftChat {
         };
         RaftState::reset_to_follower(&mut guard, self.config.clone(), Some(leader_id));
         match guard
-            .persistent_state
+            .sm
             .append_entries(args.prev_length, args.prev_term, &args.entries)
         {
             None => Ok(Response::new(AppendEntriesRes {
@@ -191,13 +199,19 @@ impl RaftChat for MyRaftChat {
     }
 }
 
-pub fn run_raft(config: RaftConfig, log_tx: Sender<Entry>, req_rx: Receiver<UserRequestArgs>) {
+pub fn run_raft(
+    config: RaftConfig,
+    log_tx: mpsc::Sender<Entry>,
+    req_rx: mpsc::Receiver<UserRequestArgs>,
+) {
     let serve_addr = config.serve_addr;
     let persistent_state_path = config.persistent_state_path;
+    let wal_path = config.wal_path;
     let raft_chat = Arc::new(MyRaftChat {
         config: Arc::new(config),
         state: Arc::new(Mutex::new(RaftState {
             persistent_state: PersistentState::new(persistent_state_path),
+            sm: SMWrapper::new(WAL::new(wal_path)),
             committed_length: 0,
             role: Role::Follower(FollowerState {
                 current_leader: None,
