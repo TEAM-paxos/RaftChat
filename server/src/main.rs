@@ -85,9 +85,14 @@ async fn run_tasks(
 ) {
     let raft_config = raft::RaftConfig {
         serve_addr: SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8080),
-        self_id: "server1".to_string(),
-        peers: config.peers.clone(),
+        self_id: "server1",
+        peers: config
+            .peers
+            .iter()
+            .map(|s| s.clone().leak() as &'static str)
+            .collect(),
         timeout_duration: tokio::time::Duration::from_millis(1000),
+        heartbeat_duration: tokio::time::Duration::from_millis(500),
         persistent_state_path: std::path::Path::new("TODO : path to persistent_state"),
     };
     let (log_tx, log_rx) = mpsc::channel(15);
