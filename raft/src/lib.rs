@@ -1,6 +1,7 @@
 pub mod mock_raft;
 pub mod persistent_state;
 pub mod raftchat_tonic;
+pub mod wal;
 
 use std::cmp::{max, min};
 use std::collections::HashMap;
@@ -24,6 +25,7 @@ use tonic::transport::{Channel, Server};
 use tonic::{Request, Response, Status};
 
 use persistent_state::PersistentState;
+use wal::WAL;
 
 use tokio_util::task::AbortOnDropHandle;
 
@@ -34,6 +36,7 @@ pub struct RaftConfig {
     pub timeout_duration: Duration,
     pub heartbeat_duration: Duration,
     pub persistent_state_path: &'static Path,
+    pub wal_path: &'static Path,
 }
 
 impl RaftConfig {
@@ -68,6 +71,7 @@ pub enum Role {
 
 pub struct RaftState {
     persistent_state: PersistentState,
+    wal: WAL,
     committed_length: u64,
     role: Role,
     sent_length: u64,
@@ -141,7 +145,7 @@ impl RaftChat for MyRaftChat {
         };
         RaftState::reset_to_follower(&mut guard, self.config.clone(), Some(leader_id));
         match guard
-            .persistent_state
+            .wal
             .append_entries(args.prev_length, args.prev_term, &args.entries)
         {
             None => Ok(Response::new(AppendEntriesRes {
@@ -200,10 +204,12 @@ pub fn run_raft(
 ) {
     let serve_addr = config.serve_addr;
     let persistent_state_path = config.persistent_state_path;
+    let wal_path = config.wal_path;
     let raft_chat = Arc::new(MyRaftChat {
         config: Arc::new(config),
         state: Arc::new(Mutex::new(RaftState {
             persistent_state: PersistentState::new(persistent_state_path),
+            wal: WAL::new(wal_path),
             committed_length: 0,
             role: Role::Follower(FollowerState {
                 current_leader: None,
