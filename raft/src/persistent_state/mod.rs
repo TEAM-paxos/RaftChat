@@ -7,7 +7,7 @@ use std::path::Path;
 pub struct PersistentState {
     // These data must be stored on persistent storage
     current_term: u64,
-    voted_for: Option<String>,
+    voted_for: Option<&'static str>,
     log: Vec<Entry>,
 }
 
@@ -22,11 +22,11 @@ impl PersistentState {
     }
 
     pub fn get_current_term(&self) -> u64 {
-        return self.current_term;
+        self.current_term
     }
 
-    pub fn get_voted_for(&self) -> Option<String> {
-        return self.voted_for.clone();
+    pub fn get_voted_for(&self) -> Option<&'static str> {
+        self.voted_for
     }
 
     // Dummy implementation
@@ -54,20 +54,20 @@ impl PersistentState {
     // return (current_term, ok)
     //   current_term : term number after update
     //   ok : true if candidate received a vote
-    pub fn try_vote(&mut self, new_term: u64, candidate: &String) -> (u64, bool) {
+    pub fn try_vote(&mut self, new_term: u64, candidate: &'static str) -> (u64, bool) {
         if new_term < self.current_term {
             (self.current_term, false)
         } else if self.current_term < new_term {
             self.current_term = new_term;
-            self.voted_for = Some(candidate.clone());
+            self.voted_for = Some(candidate);
             (self.current_term, true)
         } else {
             match &self.voted_for {
                 None => {
-                    self.voted_for = Some(candidate.clone());
+                    self.voted_for = Some(candidate);
                     (self.current_term, true)
                 }
-                Some(recipient) => (self.current_term, recipient == candidate),
+                Some(recipient) => (self.current_term, *recipient == candidate),
             }
         }
     }

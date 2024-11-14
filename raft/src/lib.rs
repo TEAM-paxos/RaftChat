@@ -29,21 +29,27 @@ use tokio_util::task::AbortOnDropHandle;
 
 pub struct RaftConfig {
     pub serve_addr: SocketAddr,
-    pub self_id: String,
-    pub peers: Vec<String>, // except self
+    pub self_id: &'static str,
+    pub peers: Vec<&'static str>, // except self
     pub timeout_duration: Duration,
     pub heartbeat_duration: Duration,
     pub persistent_state_path: &'static Path,
 }
 
+impl RaftConfig {
+    fn get_peer(&self, s: &str) -> Option<&'static str> {
+        self.peers.iter().find(|&&peer| peer == s).copied()
+    }
+}
+
 pub struct LeaderState {
     heartbeat_handle: AbortOnDropHandle<()>,
-    next_index: HashMap<String, u64>,
-    match_length: HashMap<String, u64>,
+    next_index: HashMap<&'static str, u64>,
+    match_length: HashMap<&'static str, u64>,
 }
 
 pub struct FollowerState {
-    current_leader: Option<String>,
+    current_leader: Option<&'static str>,
     timeout_handle: AbortOnDropHandle<()>,
 }
 
@@ -64,7 +70,7 @@ pub struct RaftState {
     role: Role,
     sent_length: u64,
     log_sender: Sender<Entry>,
-    connections: HashMap<String, RaftChatClient<Channel>>,
+    connections: HashMap<&'static str, RaftChatClient<Channel>>,
 }
 
 pub struct MyRaftChat {
@@ -101,7 +107,7 @@ impl RaftState {
     fn reset_to_follower(
         guard: &mut OwnedMutexGuard<Self>,
         config: Arc<RaftConfig>,
-        current_leader: Option<String>,
+        current_leader: Option<&'static str>,
     ) {
         let state: Arc<Mutex<Self>> = OwnedMutexGuard::mutex(guard).clone();
         guard.role = Role::Follower(FollowerState {
@@ -128,7 +134,10 @@ impl RaftChat for MyRaftChat {
                 success: false,
             }));
         }
-        RaftState::reset_to_follower(&mut guard, self.config.clone(), Some(args.leader_id));
+        let Some(leader_id) = self.config.get_peer(&args.leader_id) else {
+            unimplemented!();
+        };
+        RaftState::reset_to_follower(&mut guard, self.config.clone(), Some(leader_id));
         match guard
             .persistent_state
             .append_entries(args.prev_length, args.prev_term, &args.entries)
@@ -157,9 +166,10 @@ impl RaftChat for MyRaftChat {
     ) -> Result<Response<RequestVoteRes>, Status> {
         let args: RequestVoteArgs = request.into_inner();
         let mut guard = self.state.clone().lock_owned().await;
-        let (current_term, ok) = guard
-            .persistent_state
-            .try_vote(args.term, &args.candidate_id);
+        let Some(candidate_id) = self.config.get_peer(&args.candidate_id) else {
+            unimplemented!();
+        };
+        let (current_term, ok) = guard.persistent_state.try_vote(args.term, candidate_id);
         if !ok {
             return Ok(Response::new(RequestVoteRes {
                 term: current_term,
