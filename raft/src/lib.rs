@@ -8,7 +8,7 @@ use std::net::SocketAddr;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::mpsc::{Receiver, Sender};
+use tokio::sync::{mpsc, oneshot};
 use tokio::sync::{Mutex, OwnedMutexGuard};
 use tokio::task;
 use tokio::time;
@@ -46,6 +46,8 @@ pub struct LeaderState {
     heartbeat_handle: AbortOnDropHandle<()>,
     next_index: HashMap<&'static str, u64>,
     match_length: HashMap<&'static str, u64>,
+    // NB : alarm false to senders when dropping LeaderState
+    commit_alarm: Vec<(u64, oneshot::Sender<bool>)>,
 }
 
 pub struct FollowerState {
@@ -69,7 +71,7 @@ pub struct RaftState {
     committed_length: u64,
     role: Role,
     sent_length: u64,
-    log_sender: Sender<Entry>,
+    log_sender: mpsc::Sender<Entry>,
     connections: HashMap<&'static str, RaftChatClient<Channel>>,
 }
 
@@ -191,7 +193,11 @@ impl RaftChat for MyRaftChat {
     }
 }
 
-pub fn run_raft(config: RaftConfig, log_tx: Sender<Entry>, req_rx: Receiver<UserRequestArgs>) {
+pub fn run_raft(
+    config: RaftConfig,
+    log_tx: mpsc::Sender<Entry>,
+    req_rx: mpsc::Receiver<UserRequestArgs>,
+) {
     let serve_addr = config.serve_addr;
     let persistent_state_path = config.persistent_state_path;
     let raft_chat = Arc::new(MyRaftChat {
