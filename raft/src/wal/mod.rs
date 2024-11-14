@@ -8,9 +8,23 @@ pub struct WAL {
     cache: Vec<Entry>,
 }
 
+pub enum Action<'a> {
+    Id,
+    Update(u64, &'a [Entry]),
+}
+
 impl WAL {
     pub fn new(path: &Path) -> WAL {
+        // TODO : init with path
         WAL { cache: vec![] }
+    }
+
+    pub fn len(&self) -> u64 {
+        self.cache.len() as u64
+    }
+
+    pub fn as_slice(&self) -> &[Entry] {
+        &self.cache
     }
 
     // Dummy implementation.
@@ -18,17 +32,17 @@ impl WAL {
     // return None    if not matched
     // return Some(l) if matched, where l is the length of guaranteed common prefix of
     //                      the log of the leader and the log of this node.
-    pub fn append_entries(
+    pub fn append_entries<'a>(
         &mut self,
         prev_length: u64,
         prev_term: u64,
-        entries: &[Entry],
-    ) -> Option<u64> {
+        entries: &'a [Entry],
+    ) -> Option<Action<'a>> {
         if self.cache.len() < prev_length as usize {
             None
         } else if (prev_length == 0) || (self.cache[prev_length as usize - 1].term == prev_term) {
             // calculate action to perform
-            let action: Option<(usize, &[Entry])> = {
+            let action: Action = {
                 let mut l: usize = prev_length as usize;
                 let mut entries: &[Entry] = entries;
                 loop {
@@ -39,22 +53,22 @@ impl WAL {
                                 entries = entries_tail;
                                 continue;
                             } else {
-                                break Some((l, entries));
+                                break Action::Update(l as u64, entries);
                             }
                         }
-                        [] => break None,
+                        [] => break Action::Id,
                     }
                 }
             };
 
             // apply action to the log
-            if let Some((l, entries)) = action {
-                self.cache.truncate(l);
+            if let Action::Update(l, entries) = action {
+                self.cache.truncate(l as usize);
                 self.cache.extend_from_slice(entries);
             };
 
             // compatible length
-            Some(prev_length + entries.len() as u64)
+            Some(action)
         } else {
             None
         }
