@@ -8,6 +8,7 @@ pub struct WAL {
     cache: Vec<Entry>,
 }
 
+#[derive(Debug, PartialEq)]
 pub enum Action<'a> {
     Id,
     Update(u64, &'a [Entry]),
@@ -79,7 +80,7 @@ impl WAL {
 mod tests {
 
     use crate::raftchat_tonic::{Command, Entry};
-    use crate::wal::WAL;
+    use crate::wal::{Action, WAL};
 
     fn mk_entry(term: u64) -> Entry {
         Entry {
@@ -96,7 +97,7 @@ mod tests {
     #[rustfmt::skip]
     fn case_append() {
         let mut state = WAL {
-            log: vec![
+            cache: vec![
                 mk_entry(1),
                 mk_entry(2),
                 mk_entry(3),
@@ -113,10 +114,10 @@ mod tests {
                     mk_entry(5),
                 ]
             ),
-            Some(5)
+            Some(Action::Update(3, &[mk_entry(4), mk_entry(5)]))
         );
         assert_eq!(
-            state.log,
+            state.cache,
             vec![
                 mk_entry(1),
                 mk_entry(2),
@@ -131,7 +132,7 @@ mod tests {
     #[rustfmt::skip]
     fn case_rewrite() {
         let mut state = WAL {
-            log: vec![
+            cache: vec![
                 mk_entry(1),
                 mk_entry(2),
                 mk_entry(3),
@@ -147,10 +148,10 @@ mod tests {
                     mk_entry(5),
                 ]
             ),
-            Some(4)
+            Some(Action::Update(2, &[mk_entry(4), mk_entry(5)]))
         );
         assert_eq!(
-            state.log,
+            state.cache,
             vec![
                 mk_entry(1),
                 mk_entry(2),
@@ -164,7 +165,7 @@ mod tests {
     #[rustfmt::skip]
     fn case_subsumed() {
         let mut state = WAL {
-            log: vec![
+            cache: vec![
                 mk_entry(1),
                 mk_entry(2),
                 mk_entry(3),
@@ -179,10 +180,10 @@ mod tests {
                     mk_entry(2),
                 ]
             ),
-            Some(2)
+            Some(Action::Id)
         );
         assert_eq!(
-            state.log,
+            state.cache,
             vec![
                 mk_entry(1),
                 mk_entry(2),
