@@ -2,7 +2,7 @@
 
 use crate::raftchat_tonic::Entry;
 use atomic_write_file::AtomicWriteFile;
-use std::path::Path;
+use std::{fmt::Error, path::Path};
 
 pub struct WAL {
     cache: Vec<Entry>,
@@ -73,6 +73,11 @@ impl WAL {
         } else {
             None
         }
+    }
+
+    pub fn propose_entry(&mut self, entry: Entry) -> u64 {
+        self.cache.push(entry);
+        return self.cache.len() as u64 - 1;
     }
 }
 
