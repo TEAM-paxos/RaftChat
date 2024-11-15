@@ -24,6 +24,13 @@ impl WAL {
         self.cache.len() as u64
     }
 
+    pub fn last_term(&self) -> u64 {
+        match self.cache.last() {
+            Some(entry) => entry.term,
+            None => 0,
+        }
+    }
+
     pub fn as_slice(&self) -> &[Entry] {
         &self.cache
     }

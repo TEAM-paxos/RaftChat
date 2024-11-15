@@ -49,7 +49,7 @@ impl RaftConfig {
 
 pub struct LeaderState {
     heartbeat_handle: AbortOnDropHandle<()>,
-    next_index: HashMap<&'static str, u64>,
+    next_length: HashMap<&'static str, u64>,
     match_length: HashMap<&'static str, u64>,
     // NB : alarm false to senders when dropping LeaderState
     commit_alarm: Vec<(u64, oneshot::Sender<bool>)>,
@@ -90,13 +90,79 @@ impl RaftState {
     async fn timeout_future(state: Arc<Mutex<Self>>, config: Arc<RaftConfig>) {
         time::sleep(config.timeout_duration).await;
         let mut guard = state.clone().lock_owned().await;
+        // TODO : Add checking for term and role
         guard.persistent_state.increment_term();
         // NB : this will cancel itself
         Self::reset_to_candidate(&mut guard, config);
     }
 
+    async fn heartbeat_future(state: Arc<Mutex<Self>>, config: Arc<RaftConfig>) {
+        time::sleep(config.heartbeat_duration).await;
+        let mut guard = state.clone().lock_owned().await;
+        // TODO
+    }
+
     async fn election_future(state: Arc<Mutex<Self>>, config: Arc<RaftConfig>) {
-        // TODO : implement election
+        // NB : Repeatedly requesting vote for every peers is also possible,
+        // But we will request vote for just once, just for ease of implementation.
+        let guard = state.lock().await;
+        let mut handles = vec![];
+        let req = RequestVoteArgs {
+            candidate_id: String::from(config.self_id),
+            prev_length: guard.sm.wal().len(),
+            prev_term: guard.sm.wal().last_term(),
+            term: guard.persistent_state.get_current_term(),
+        };
+        let connections = guard.connections.clone();
+        drop(guard);
+
+        let (vote_tx, mut vote_rx) = mpsc::channel::<bool>(10);
+        for mut client in connections {
+            let req_cloned = req.clone();
+            let vote_tx_cloned = vote_tx.clone();
+            handles.push(AbortOnDropHandle::new(task::spawn(async move {
+                match client.1.request_vote(Request::new(req_cloned)).await {
+                    Ok(res) => vote_tx_cloned.send(res.into_inner().vote_granted).await,
+                    Err(_) => vote_tx_cloned.send(false).await,
+                }
+            })));
+        }
+
+        let mut vote_count: usize = 0;
+        let elected = loop {
+            // NB : This loop will get stuck if number of vote is not sufficient.
+            // We have timeout for election anyway.
+            if let Some(true) = vote_rx.recv().await {
+                vote_count = vote_count + 1;
+            } else {
+                break false;
+            }
+            if vote_count * 2 > config.peers.len() + 1 {
+                break true;
+            }
+        };
+
+        if elected {
+            let mut guard = state.lock_owned().await;
+            Self::reset_to_leader(&mut guard, config);
+        }
+    }
+
+    fn reset_to_leader(guard: &mut OwnedMutexGuard<Self>, config: Arc<RaftConfig>) {
+        let state = OwnedMutexGuard::mutex(guard).clone();
+        guard.role = Role::Leader(LeaderState {
+            heartbeat_handle: AbortOnDropHandle::new(task::spawn(Self::heartbeat_future(
+                state.clone(),
+                config.clone(),
+            ))),
+            next_length: config
+                .peers
+                .iter()
+                .map(|&p| (p, guard.sm.wal().len()))
+                .collect(),
+            match_length: config.peers.iter().map(|&p| (p, 0)).collect(),
+            commit_alarm: Vec::new(),
+        });
     }
 
     fn reset_to_candidate(guard: &mut OwnedMutexGuard<Self>, config: Arc<RaftConfig>) {
