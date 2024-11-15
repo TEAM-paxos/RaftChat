@@ -76,7 +76,7 @@ pub struct RaftState {
     sm: SMWrapper<UserMessageIdMap>,   // log[]
     committed_length: u64,             // committed index in paper
     role: Role,
-    log_sender: mpsc::Sender<Entry>, // send to web server
+    pub_tx: mpsc::Sender<bool>, // tick to publisher
     connections: HashMap<&'static str, RaftChatClient<Channel>>,
 }
 
@@ -224,7 +224,12 @@ impl RaftChat for MyRaftChat {
                     guard.committed_length,
                     min(args.committed_length, compatible_length),
                 );
-                // TODO : send committed logs
+
+                // TODO : need to replace channel with condition variable
+                let pub_tx: mpsc::Sender<bool> = guard.pub_tx.clone();
+                drop(guard);
+
+                _ = pub_tx.blocking_send(true);
 
                 Ok(Response::new(AppendEntriesRes {
                     term: current_term,
@@ -335,6 +340,28 @@ impl RaftChat for MyRaftChat {
     }
 }
 
+pub fn publisher(
+    state: Arc<Mutex<RaftState>>,
+    log_tx: mpsc::Sender<Entry>,
+    mut pub_rx: mpsc::Receiver<bool>,
+) {
+    let sent_idx: usize = 0;
+    while let Some(_) = pub_rx.blocking_recv() {
+        let guard = state.blocking_lock();
+
+        let committed_length = guard.committed_length as usize;
+        let entries = guard.sm.wal().as_slice()[sent_idx..committed_length].to_vec();
+
+        drop(guard);
+
+        for i in entries {
+            log_tx
+                .blocking_send(i)
+                .expect("Send log to webserver failed");
+        }
+    }
+}
+
 pub fn run_raft(
     config: RaftConfig,
     log_tx: mpsc::Sender<Entry>,
@@ -343,6 +370,7 @@ pub fn run_raft(
     let serve_addr = config.serve_addr;
     let persistent_state_path = config.persistent_state_path;
     let wal_path = config.wal_path;
+    let (pub_tx, pub_rx) = mpsc::channel::<bool>(15);
     let raft_chat = Arc::new(MyRaftChat {
         config: Arc::new(config),
         state: Arc::new(Mutex::new(RaftState {
@@ -353,10 +381,13 @@ pub fn run_raft(
                 current_leader: None,
                 timeout_handle: AbortOnDropHandle::new(task::spawn(async {})),
             }),
-            log_sender: log_tx,
+            pub_tx,
             connections: HashMap::new(),
         })),
     });
+
+    let state = raft_chat.state.clone();
+    task::spawn_blocking(move || publisher(state, log_tx, pub_rx));
 
     raft_chat.state.blocking_lock().role = Role::Follower(FollowerState {
         current_leader: None,
