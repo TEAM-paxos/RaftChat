@@ -214,7 +214,7 @@ impl RaftChat for MyRaftChat {
                 let client_committed_idx = sm.state().get(&args.client_id);
 
                 if client_committed_idx == None
-                    || client_committed_idx.unwrap() != args.message_id + 1
+                    || client_committed_idx.unwrap() + 1 != args.message_id
                 {
                     return Ok(Response::new(UserRequestRes { success: false }));
                 }
