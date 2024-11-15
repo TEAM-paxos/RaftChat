@@ -191,10 +191,44 @@ impl RaftChat for MyRaftChat {
         }))
     }
 
+    //
+    // 1. !리더 -> 리더에 대해 user req 호출
+    // 2. 리더 -> blocking -> 내 로그에 append(wal) -> tuple(index, onshot channel) state에 등록 -> (commit 외부함수) -> ch(succ or fail return) -> return
+    // -> msg id blocking (committed idx면 succ) (not committed거나 존재 안하면 append -> succ) (넘어가면 fail)
+    //
     async fn user_request(
         &self,
         request: Request<UserRequestArgs>,
     ) -> Result<Response<UserRequestRes>, Status> {
+        let guard = self.state.lock().await;
+
+        match &guard.role {
+            Role::Leader(state) => {
+                // 1. blocking
+
+                // 2. append log in wal
+
+                // 3. append channel raft state
+
+                drop(guard);
+                // 4. call commit func
+
+                // 5. return
+
+                unimplemented!()
+            }
+            Role::Follower(state) => {
+                if let Some(leader_id) = state.current_leader {
+                } else {
+                    // error
+                    unimplemented!()
+                }
+            }
+            Role::Candidate(_) => {
+                unimplemented!()
+            }
+        };
+
         unimplemented!()
     }
 }
