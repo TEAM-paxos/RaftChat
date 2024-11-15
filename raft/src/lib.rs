@@ -35,7 +35,7 @@ pub struct RaftConfig {
     pub serve_addr: SocketAddr,
     pub self_id: &'static str,
     pub peers: Vec<&'static str>, // except self
-    pub timeout_duration: Duration,
+    pub election_duration: Duration,
     pub heartbeat_duration: Duration,
     pub persistent_state_path: &'static Path,
     pub wal_path: &'static Path,
@@ -87,7 +87,7 @@ pub struct MyRaftChat {
 
 impl RaftState {
     async fn timeout_future(state: Arc<Mutex<Self>>, config: Arc<RaftConfig>) {
-        time::sleep(config.timeout_duration).await;
+        time::sleep(config.election_duration).await;
         let mut guard = state.clone().lock_owned().await;
         // TODO : Add checking for term and role
         guard.persistent_state.increment_term();
