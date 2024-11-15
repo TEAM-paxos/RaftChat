@@ -53,6 +53,10 @@ where
         }
     }
 
+    pub fn wal(&self) -> &WAL {
+        &self.wal
+    }
+
     pub fn take_snapshot(&mut self, len: u64) {
         let snapshot_length = self.snapshot.0;
         if snapshot_length <= len {
