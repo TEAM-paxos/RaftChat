@@ -17,8 +17,8 @@ use tokio::time;
 
 use raftchat_tonic::raft_chat_client::RaftChatClient;
 use raftchat_tonic::raft_chat_server::{RaftChat, RaftChatServer};
-use raftchat_tonic::Entry;
 use raftchat_tonic::{AppendEntriesArgs, AppendEntriesRes};
+use raftchat_tonic::{Command, Entry};
 use raftchat_tonic::{RequestVoteArgs, RequestVoteRes};
 use raftchat_tonic::{UserRequestArgs, UserRequestRes};
 
@@ -72,12 +72,11 @@ pub enum Role {
 }
 
 pub struct RaftState {
-    persistent_state: PersistentState,
-    sm: SMWrapper<UserMessageIdMap>,
-    committed_length: u64,
+    persistent_state: PersistentState, // current Term & voted For
+    sm: SMWrapper<UserMessageIdMap>,   // log[]
+    committed_length: u64,             // committed index in paper
     role: Role,
-    sent_length: u64,
-    log_sender: mpsc::Sender<Entry>,
+    log_sender: mpsc::Sender<Entry>, // send to web server
     connections: HashMap<&'static str, RaftChatClient<Channel>>,
 }
 
@@ -226,6 +225,7 @@ impl RaftChat for MyRaftChat {
                     min(args.committed_length, compatible_length),
                 );
                 // TODO : send committed logs
+
                 Ok(Response::new(AppendEntriesRes {
                     term: current_term,
                     success: true,
@@ -257,11 +257,81 @@ impl RaftChat for MyRaftChat {
         }))
     }
 
+    // handling user request
+    // - follower => forward to leader and return result.
+    // - candidate => retuurn false
+    // - leader => propose new entry, wait until committed and return result.
     async fn user_request(
         &self,
         request: Request<UserRequestArgs>,
     ) -> Result<Response<UserRequestRes>, Status> {
-        unimplemented!()
+        let mut guard = self.state.lock().await;
+
+        match &mut *guard {
+            RaftState {
+                role: Role::Leader(leader_state),
+                sm,
+                persistent_state,
+                ..
+            } => {
+                let args = request.into_inner();
+
+                // 1. blocking
+                let client_committed_idx = sm.state().get(&args.client_id);
+
+                if client_committed_idx == None
+                    || client_committed_idx.unwrap() + 1 != args.message_id
+                {
+                    return Ok(Response::new(UserRequestRes { success: false }));
+                }
+
+                // 2. append log in wal
+                let proposed_idx = sm.propose_entry(Entry {
+                    term: persistent_state.get_current_term(),
+                    command: Some(Command {
+                        client_id: args.client_id,
+                        message_id: args.message_id,
+                        data: args.data,
+                    }),
+                });
+
+                // 3. append channel raft state
+                let (tx, rx) = oneshot::channel();
+                leader_state.commit_alarm.push((proposed_idx, tx));
+
+                drop(guard);
+                // 4. call commit func
+
+                // 5. waiting commit
+                match rx.blocking_recv() {
+                    Ok(true) => return Ok(Response::new(UserRequestRes { success: true })),
+                    Ok(false) => return Ok(Response::new(UserRequestRes { success: false })),
+                    Err(_) => return Ok(Response::new(UserRequestRes { success: false })),
+                };
+            }
+            RaftState {
+                role: Role::Follower(follower_state),
+                ..
+            } => {
+                if let Some(leader_id) = follower_state.current_leader {
+                    let mut client = guard
+                        .connections
+                        .get(leader_id)
+                        .expect("Get connection failed : follower don't know who's the leader")
+                        .clone();
+
+                    drop(guard);
+
+                    let res = client.user_request(request).await?;
+                    return Ok(res);
+                }
+            }
+            RaftState {
+                role: Role::Candidate(_),
+                ..
+            } => {}
+        }
+        return Ok(Response::new(UserRequestRes { success: false }));
     }
 }
 
@@ -283,7 +353,6 @@ pub fn run_raft(
                 current_leader: None,
                 timeout_handle: AbortOnDropHandle::new(task::spawn(async {})),
             }),
-            sent_length: 0,
             log_sender: log_tx,
             connections: HashMap::new(),
         })),

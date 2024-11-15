@@ -1,6 +1,8 @@
 use crate::raftchat_tonic::{Command, Entry};
 use crate::wal::{Action, WAL};
 use std::collections::HashMap;
+use std::fmt::Error;
+use std::os::linux::raw::stat;
 
 trait StateMachine {
     fn new() -> Self;
@@ -24,6 +26,12 @@ pub struct SMWrapper<S> {
 #[derive(Clone)]
 pub struct UserMessageIdMap {
     table: HashMap<String, u64>,
+}
+
+impl UserMessageIdMap {
+    pub fn get(&self, client_id: &String) -> Option<u64> {
+        self.table.get(client_id).cloned()
+    }
 }
 
 impl StateMachine for UserMessageIdMap {
@@ -69,6 +77,15 @@ where
         }
     }
 
+    pub fn propose_entry(&mut self, entry: Entry) -> u64 {
+        // must update state machine before proposing
+        self.state
+            .apply(entry.command.as_ref().expect("Apply command is None"));
+
+        // return appended index
+        return self.wal.propose_entry(entry);
+    }
+
     pub fn append_entries(
         &mut self,
         prev_length: u64,
@@ -89,5 +106,9 @@ where
         } else {
             None
         }
+    }
+
+    pub fn state(&self) -> &S {
+        &self.state
     }
 }
