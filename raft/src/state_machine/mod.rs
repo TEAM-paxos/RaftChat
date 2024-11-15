@@ -57,7 +57,9 @@ where
         let snapshot_length = self.snapshot.0;
         if snapshot_length <= len {
             self.snapshot.0 = len;
-            self.snapshot.1.apply_entries(&self.wal.as_slice()[len as usize..]);
+            self.snapshot
+                .1
+                .apply_entries(&self.wal.as_slice()[len as usize..]);
         } else {
             panic!();
         }
