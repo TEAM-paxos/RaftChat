@@ -269,76 +269,78 @@ impl RaftChat for MyRaftChat {
         &self,
         request: Request<UserRequestArgs>,
     ) -> Result<Response<UserRequestRes>, Status> {
-        let mut guard = self.state.lock();
+        let mut client;
+        {
+            let mut guard = self.state.lock();
 
-        match &mut *guard {
-            RaftState {
-                role: Role::Leader(leader_state),
-                sm,
-                persistent_state,
-                ..
-            } => {
-                let args = request.into_inner();
+            match &mut *guard {
+                RaftState {
+                    role: Role::Leader(leader_state),
+                    sm,
+                    persistent_state,
+                    ..
+                } => {
+                    let args = request.into_inner();
 
-                // 1. blocking
-                let client_committed_idx = sm.state().get(&args.client_id);
+                    // 1. blocking
+                    let client_committed_idx = sm.state().get(&args.client_id);
 
-                if client_committed_idx == None
-                    || client_committed_idx.unwrap() + 1 != args.message_id
-                {
-                    return Ok(Response::new(UserRequestRes { success: false }));
-                }
+                    if client_committed_idx == None
+                        || client_committed_idx.unwrap() + 1 != args.message_id
+                    {
+                        return Ok(Response::new(UserRequestRes { success: false }));
+                    }
 
-                // 2. append log in wal
-                let proposed_idx = sm.propose_entry(Entry {
-                    term: persistent_state.get_current_term(),
-                    command: Some(Command {
-                        client_id: args.client_id,
-                        message_id: args.message_id,
-                        data: args.data,
-                    }),
-                });
+                    // 2. append log in wal
+                    let proposed_idx = sm.propose_entry(Entry {
+                        term: persistent_state.get_current_term(),
+                        command: Some(Command {
+                            client_id: args.client_id,
+                            message_id: args.message_id,
+                            data: args.data,
+                        }),
+                    });
 
-                // 3. append channel raft state
-                let (tx, rx) = oneshot::channel();
-                leader_state.commit_alarm.push((proposed_idx, tx));
-
-                drop(guard);
-                // 4. call commit func
-
-                // 5. waiting commit
-                match rx.blocking_recv() {
-                    Ok(true) => return Ok(Response::new(UserRequestRes { success: true })),
-                    Ok(false) => return Ok(Response::new(UserRequestRes { success: false })),
-                    Err(_) => return Ok(Response::new(UserRequestRes { success: false })),
-                };
-            }
-            RaftState {
-                role: Role::Follower(follower_state),
-                ..
-            } => {
-                if let Some(leader_id) = follower_state.current_leader {
-                    let mut client = guard
-                        .connections
-                        .get(leader_id)
-                        .expect("Get connection failed : follower don't know who's the leader")
-                        .clone();
+                    // 3. append channel raft state
+                    let (tx, rx) = oneshot::channel();
+                    leader_state.commit_alarm.push((proposed_idx, tx));
 
                     drop(guard);
+                    // 4. call commit func
 
-                    // TODO : restructure the code so that await does not occurs in the scope of
-                    // mutex guard
-                    // let res = client.user_request(request).await?;
-                    // return Ok(res);
-                    unimplemented!()
+                    // 5. waiting commit
+                    match rx.blocking_recv() {
+                        Ok(true) => return Ok(Response::new(UserRequestRes { success: true })),
+                        Ok(false) => return Ok(Response::new(UserRequestRes { success: false })),
+                        Err(_) => return Ok(Response::new(UserRequestRes { success: false })),
+                    };
+                }
+                RaftState {
+                    role: Role::Follower(follower_state),
+                    ..
+                } => {
+                    if let Some(leader_id) = follower_state.current_leader {
+                        client = guard
+                            .connections
+                            .get(leader_id)
+                            .expect("Get connection failed : follower don't know who's the leader")
+                            .clone();
+
+                        drop(guard);
+                    }
+                    else {return Ok(Response::new(UserRequestRes { success: false }));}
+                }
+                RaftState {
+                    role: Role::Candidate(_),
+                    ..
+                } => {
+                    return Ok(Response::new(UserRequestRes { success: false }));
                 }
             }
-            RaftState {
-                role: Role::Candidate(_),
-                ..
-            } => {}
         }
-        return Ok(Response::new(UserRequestRes { success: false }));
+        
+        let res = client.user_request(request).await?;
+        return Ok(res);
     }
 }
 
