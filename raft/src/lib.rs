@@ -327,8 +327,9 @@ impl RaftChat for MyRaftChat {
                             .clone();
 
                         drop(guard);
+                    } else {
+                        return Ok(Response::new(UserRequestRes { success: false }));
                     }
-                    else {return Ok(Response::new(UserRequestRes { success: false }));}
                 }
                 RaftState {
                     role: Role::Candidate(_),
@@ -338,7 +339,7 @@ impl RaftChat for MyRaftChat {
                 }
             }
         }
-        
+
         let res = client.user_request(request).await?;
         return Ok(res);
     }
