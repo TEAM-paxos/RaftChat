@@ -2,6 +2,11 @@
 name = "raft"
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
+authors = [
+    "SoonWon Moon <damhiya@gmail.com>",
+    "Bumsung Baek <highcloud100@inha.edu>",
+]
 
 [dependencies]
 tonic = "0.12"

@@ -1,3 +1,10 @@
+/*!
+ * Copyright (c) 2024 "Bumsung Baek <highcloud100@inha.edu>,
+                         SoonWon Moon < damhiya@gmail.com> "
+ * Licensed under the MIT License.
+ * See the LICENSE file in the project root for more information.
+*/
+
 export class Storage {
 
     setServerVersion(version) {
