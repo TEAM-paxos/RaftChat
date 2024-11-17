@@ -351,8 +351,8 @@ pub fn publisher(
     committed_length_cvar: Arc<Condvar>,
 ) {
     let sent_length: usize = 0;
+    let mut guard = state.lock();
     loop {
-        let mut guard = state.lock();
         let committed_length = guard.committed_length as usize;
         if sent_length < committed_length {
             let entries = guard.sm.wal().as_slice()[sent_length..committed_length].to_vec();
@@ -360,6 +360,7 @@ pub fn publisher(
             for entry in entries {
                 log_tx.blocking_send(entry).unwrap();
             }
+            guard = state.lock();
         } else {
             committed_length_cvar.wait(&mut guard);
         }
