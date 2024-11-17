@@ -84,7 +84,7 @@ pub struct RaftState {
 pub struct MyRaftChat {
     config: Arc<RaftConfig>,
     state: Arc<Mutex<RaftState>>,
-    append_cvar: Arc<Condvar>,
+    committed_length_cvar: Arc<Condvar>,
 }
 
 impl RaftState {
@@ -229,7 +229,7 @@ impl RaftChat for MyRaftChat {
                     min(args.committed_length, compatible_length),
                 );
                 drop(guard);
-                self.append_cvar.notify_one();
+                self.committed_length_cvar.notify_one();
                 Ok(Response::new(AppendEntriesRes {
                     term: current_term,
                     success: true,
@@ -348,7 +348,7 @@ impl RaftChat for MyRaftChat {
 pub fn publisher(
     state: Arc<Mutex<RaftState>>,
     log_tx: mpsc::Sender<Entry>,
-    append_cvar: Arc<Condvar>,
+    committed_length_cvar: Arc<Condvar>,
 ) {
     let sent_length: usize = 0;
     loop {
@@ -361,7 +361,7 @@ pub fn publisher(
                 log_tx.blocking_send(entry).unwrap();
             }
         } else {
-            append_cvar.wait(&mut guard);
+            committed_length_cvar.wait(&mut guard);
         }
     }
 }
@@ -374,7 +374,7 @@ pub fn run_raft(
     let serve_addr = config.serve_addr;
     let persistent_state_path = config.persistent_state_path;
     let wal_path = config.wal_path;
-    let append_cvar = Arc::new(Condvar::new());
+    let committed_length_cvar = Arc::new(Condvar::new());
     let raft_chat = Arc::new(MyRaftChat {
         config: Arc::new(config),
         state: Arc::new(Mutex::new(RaftState {
@@ -387,11 +387,11 @@ pub fn run_raft(
             }),
             connections: HashMap::new(),
         })),
-        append_cvar: append_cvar.clone(),
+        committed_length_cvar: committed_length_cvar.clone(),
     });
 
     let state = raft_chat.state.clone();
-    task::spawn_blocking(move || publisher(state, log_tx, append_cvar));
+    task::spawn_blocking(move || publisher(state, log_tx, committed_length_cvar));
 
     raft_chat.state.lock().role = Role::Follower(FollowerState {
         current_leader: None,
