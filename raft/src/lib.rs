@@ -350,7 +350,7 @@ pub fn publisher(
     log_tx: mpsc::Sender<Entry>,
     committed_length_cvar: Arc<Condvar>,
 ) {
-    let sent_length: usize = 0;
+    let mut sent_length: usize = 0;
     let mut guard = state.lock();
     loop {
         let committed_length = guard.committed_length as usize;
@@ -360,6 +360,7 @@ pub fn publisher(
             for entry in entries {
                 log_tx.blocking_send(entry).unwrap();
             }
+            sent_length = committed_length;
             guard = state.lock();
         } else {
             committed_length_cvar.wait(&mut guard);
