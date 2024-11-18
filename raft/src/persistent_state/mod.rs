@@ -28,8 +28,9 @@ impl PersistentState {
     }
 
     // Dummy implementation
-    pub fn increment_term(&mut self) {
+    pub fn start_election(&mut self, self_id: &'static str) {
         self.current_term = self.current_term + 1;
+        self.voted_for = Some(self_id);
     }
 
     // Dummy implementation.
