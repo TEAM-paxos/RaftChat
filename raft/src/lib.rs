@@ -92,7 +92,7 @@ impl RaftState {
         time::sleep(config.election_duration).await;
         let mut guard = state.lock_arc();
         // TODO : Add checking for term and role
-        guard.persistent_state.increment_term();
+        guard.persistent_state.start_election(config.self_id);
         // NB : this will cancel itself
         Self::reset_to_candidate(&mut guard, config);
     }
@@ -104,8 +104,8 @@ impl RaftState {
     }
 
     async fn election_future(state: Arc<Mutex<Self>>, config: Arc<RaftConfig>) {
-        // NB : Repeatedly requesting vote for every peers is also possible,
-        // But we will request vote for just once, just for ease of implementation.
+        // NB : Repeatedly requesting vote for every peers is more robust,
+        // But we will request vote only once, just for ease of implementation.
         let (req, connections) = {
             let guard = state.lock();
             let req = RequestVoteArgs {
@@ -131,7 +131,7 @@ impl RaftState {
             })));
         }
 
-        let mut vote_count: usize = 0;
+        let mut vote_count: usize = 1; // Candidates vote for itself
         let elected = loop {
             // NB : This loop will get stuck if number of vote is not sufficient.
             // We have timeout for election anyway.
