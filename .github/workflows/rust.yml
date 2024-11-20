@@ -54,6 +54,8 @@ jobs:
     needs: build_image
     env: 
       SERVER_ADDRESS: ${{secrets.MONITOR_ADDR}}
+      # https://docs.github.com/en/actions/writing-workflows/choosing-what-your-workflow-does/evaluate-expressions-in-workflows-and-actions#example
+      DOMAIN_IDX:  ${{ matrix.runner == 's1' && '1' || matrix.runner == 's2' && '2' || matrix.runner == 's3' && '3' || matrix.runner == 's4' && '4' || matrix.runner == 's5' && '5' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4

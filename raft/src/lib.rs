@@ -306,7 +306,7 @@ impl RaftChat for MyRaftChat {
                     leader_state.commit_alarm.push((proposed_idx, tx));
 
                     drop(guard);
-                    // 4. call commit func
+                    // 4. call commit func - notify peer threads
 
                     // 5. waiting commit
                     match rx.blocking_recv() {
