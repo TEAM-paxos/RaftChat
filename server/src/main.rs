@@ -2,7 +2,8 @@ use axum::Extension;
 use axum::{routing::get, Router};
 use clap::{Parser, Subcommand};
 use futures_util::stream::SplitSink;
-use log::info;
+use log::{info, set_logger};
+use raft::persistent_state::PersistentState;
 use std::collections::HashMap;
 use std::env;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
@@ -25,7 +26,7 @@ struct Config {
     socket_port: u16,
     rpc_port: u16,
     version: String,
-    self_id: u16,
+    self_id: String,
 }
 
 #[derive(Parser)]
@@ -63,18 +64,18 @@ async fn setup() -> Config {
         .ok()
         .and_then(|val| val.parse::<usize>().ok())
         .unwrap_or(0);
-    let peers: Vec<String> = env::var("DOMAINS")
+
+    let mut peers: Vec<String> = env::var("DOMAINS")
         .unwrap()
         .split(',')
-        .enumerate()
-        .filter_map(|(idx, s)| {
-            if idx == self_domain_idx {
-                None
-            } else {
-                Some(s.trim().to_string())
-            }
+        .map(|s|{
+            s.trim().to_string()
         })
         .collect();
+
+    let self_id = peers.remove(self_domain_idx);
+
+
     let web_port: u16 = env::var("WEB_PORT")
         .ok()
         .and_then(|val| val.parse::<u16>().ok())
@@ -97,7 +98,7 @@ async fn setup() -> Config {
         web_port,
         socket_port,
         version,
-        self_id: self_domain_idx as u16,
+        self_id,
         rpc_port,
     };
 }
@@ -127,13 +128,12 @@ async fn run_tasks(
 ) -> (
     Sender<(String, data_model::msg::ClientMsg)>,
     Sender<(String, SplitSink<WebSocketStream<TcpStream>, Message>)>,
-) {
+) { 
     let raft_config = raft::RaftConfig {
         // rpc address
         serve_addr: SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), config.rpc_port),
         // unique ID for raft node
-        // [TODO] Does self id need to be a string domain?
-        self_id: Box::leak(config.self_id.to_string().into_boxed_str()),
+        self_id: Box::leak((format!("http://{}:{}", config.self_id, config.rpc_port)).into_boxed_str()),
         peers: config
             .peers
             .iter()
