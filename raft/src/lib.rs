@@ -48,6 +48,7 @@ impl RaftConfig {
 }
 
 pub struct LeaderState {
+    #[allow(dead_code)]
     heartbeat_handle: AbortOnDropHandle<()>,
     next_length: HashMap<&'static str, u64>,
     match_length: HashMap<&'static str, u64>,
@@ -57,11 +58,14 @@ pub struct LeaderState {
 
 pub struct FollowerState {
     current_leader: Option<&'static str>,
+    #[allow(dead_code)]
     timeout_handle: AbortOnDropHandle<()>,
 }
 
 pub struct CandidateState {
+    #[allow(dead_code)]
     election_handle: AbortOnDropHandle<()>,
+    #[allow(dead_code)]
     timeout_handle: AbortOnDropHandle<()>,
 }
 

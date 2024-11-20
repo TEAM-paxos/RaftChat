@@ -2,7 +2,7 @@
 
 use crate::raftchat_tonic::Entry;
 use atomic_write_file::AtomicWriteFile;
-use std::{fmt::Error, path::Path};
+use std::path::Path;
 
 pub struct WAL {
     cache: Vec<Entry>,
