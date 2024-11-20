@@ -4,7 +4,7 @@ pub mod raftchat_tonic;
 pub mod state_machine;
 pub mod wal;
 
-use parking_lot::{Condvar, Mutex};
+use parking_lot::{Condvar, Mutex, MutexGuard};
 use std::cmp::{max, min};
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -30,8 +30,6 @@ use state_machine::{SMWrapper, UserMessageIdMap};
 use wal::WAL;
 
 use tokio_util::task::AbortOnDropHandle;
-
-type ArcMutexGuard<T> = parking_lot::ArcMutexGuard<parking_lot::RawMutex, T>;
 
 pub struct RaftConfig {
     pub serve_addr: SocketAddr,
@@ -82,34 +80,34 @@ pub struct RaftState {
 }
 
 pub struct MyRaftChat {
-    config: Arc<RaftConfig>,
-    state: Arc<Mutex<RaftState>>,
-    committed_length_cvar: Arc<Condvar>,
+    config: RaftConfig,
+    state: Mutex<RaftState>,
+    committed_length_cvar: Condvar,
 }
 
-impl RaftState {
-    async fn timeout_future(state: Arc<Mutex<Self>>, config: Arc<RaftConfig>) {
-        time::sleep(config.election_duration).await;
-        let mut guard = state.lock_arc();
+impl MyRaftChat {
+    async fn timeout_future(self: Arc<Self>) {
+        time::sleep(self.config.election_duration).await;
+        let mut guard = self.state.lock();
         // TODO : Add checking for term and role
-        guard.persistent_state.start_election(config.self_id);
+        guard.persistent_state.start_election(self.config.self_id);
         // NB : this will cancel itself
-        Self::reset_to_candidate(&mut guard, config);
+        self.reset_to_candidate(&mut guard);
     }
 
-    async fn heartbeat_future(state: Arc<Mutex<Self>>, config: Arc<RaftConfig>) {
-        time::sleep(config.heartbeat_duration).await;
-        let mut guard = state.clone().lock_arc();
+    async fn heartbeat_future(self: Arc<Self>) {
+        time::sleep(self.config.heartbeat_duration).await;
+        let mut guard = self.state.lock();
         // TODO
     }
 
-    async fn election_future(state: Arc<Mutex<Self>>, config: Arc<RaftConfig>) {
+    async fn election_future(self: Arc<Self>) {
         // NB : Repeatedly requesting vote for every peers is more robust,
         // But we will request vote only once, just for ease of implementation.
         let (req, connections) = {
-            let guard = state.lock();
+            let guard = self.state.lock();
             let req = RequestVoteArgs {
-                candidate_id: String::from(config.self_id),
+                candidate_id: String::from(self.config.self_id),
                 prev_length: guard.sm.wal().len(),
                 prev_term: guard.sm.wal().last_term(),
                 term: guard.persistent_state.get_current_term(),
@@ -140,70 +138,77 @@ impl RaftState {
             } else {
                 break false;
             }
-            if vote_count * 2 > config.peers.len() + 1 {
+            if vote_count * 2 > self.config.peers.len() + 1 {
                 break true;
             }
         };
 
         if elected {
-            let mut guard = state.lock_arc();
-            Self::reset_to_leader(&mut guard, config);
+            let mut guard = self.state.lock();
+            self.reset_to_leader(&mut guard);
         }
     }
 
-    fn reset_to_leader(guard: &mut ArcMutexGuard<Self>, config: Arc<RaftConfig>) {
-        let state = ArcMutexGuard::mutex(guard).clone();
+    fn reset_to_leader(self: &Arc<Self>, guard: &mut MutexGuard<RaftState>) {
         guard.role = Role::Leader(LeaderState {
-            heartbeat_handle: AbortOnDropHandle::new(task::spawn(Self::heartbeat_future(
-                state.clone(),
-                config.clone(),
-            ))),
-            next_length: config
+            heartbeat_handle: AbortOnDropHandle::new(task::spawn(self.clone().heartbeat_future())),
+            next_length: self
+                .config
                 .peers
                 .iter()
                 .map(|&p| (p, guard.sm.wal().len()))
                 .collect(),
-            match_length: config.peers.iter().map(|&p| (p, 0)).collect(),
+            match_length: self.config.peers.iter().map(|&p| (p, 0)).collect(),
             commit_alarm: Vec::new(),
         });
     }
 
-    fn reset_to_candidate(guard: &mut ArcMutexGuard<Self>, config: Arc<RaftConfig>) {
-        let state: Arc<Mutex<Self>> = ArcMutexGuard::mutex(guard).clone();
+    fn reset_to_candidate(self: &Arc<Self>, guard: &mut MutexGuard<RaftState>) {
         guard.role = Role::Candidate(CandidateState {
-            election_handle: AbortOnDropHandle::new(task::spawn(Self::election_future(
-                state.clone(),
-                config.clone(),
-            ))),
-            timeout_handle: AbortOnDropHandle::new(task::spawn(Self::timeout_future(
-                state, config,
-            ))),
+            election_handle: AbortOnDropHandle::new(task::spawn(self.clone().election_future())),
+            timeout_handle: AbortOnDropHandle::new(task::spawn(self.clone().timeout_future())),
         });
     }
 
     fn reset_to_follower(
-        guard: &mut ArcMutexGuard<Self>,
-        config: Arc<RaftConfig>,
+        self: &Arc<Self>,
+        guard: &mut MutexGuard<RaftState>,
         current_leader: Option<&'static str>,
     ) {
-        let state: Arc<Mutex<Self>> = ArcMutexGuard::mutex(guard).clone();
         guard.role = Role::Follower(FollowerState {
             current_leader: current_leader,
-            timeout_handle: AbortOnDropHandle::new(task::spawn(Self::timeout_future(
-                state, config,
-            ))),
+            timeout_handle: AbortOnDropHandle::new(task::spawn(self.clone().timeout_future())),
         });
+    }
+
+    pub fn publisher_thread(self: Arc<Self>, log_tx: mpsc::Sender<Entry>) {
+        let mut sent_length: usize = 0;
+        let mut guard = self.state.lock();
+        loop {
+            let committed_length = guard.committed_length as usize;
+            if sent_length < committed_length {
+                let entries = guard.sm.wal().as_slice()[sent_length..committed_length].to_vec();
+                drop(guard);
+                for entry in entries {
+                    log_tx.blocking_send(entry).unwrap();
+                }
+                sent_length = committed_length;
+                guard = self.state.lock();
+            } else {
+                self.committed_length_cvar.wait(&mut guard);
+            }
+        }
     }
 }
 
 #[tonic::async_trait]
-impl RaftChat for MyRaftChat {
+impl RaftChat for Arc<MyRaftChat> {
     async fn append_entries(
         &self,
         request: Request<AppendEntriesArgs>,
     ) -> Result<Response<AppendEntriesRes>, Status> {
         let args: AppendEntriesArgs = request.into_inner();
-        let mut guard = self.state.clone().lock_arc();
+        let mut guard = self.state.lock();
         let (current_term, ok) = guard.persistent_state.update_term(args.term);
         if !ok {
             return Ok(Response::new(AppendEntriesRes {
@@ -214,7 +219,7 @@ impl RaftChat for MyRaftChat {
         let Some(leader_id) = self.config.get_peer(&args.leader_id) else {
             unimplemented!();
         };
-        RaftState::reset_to_follower(&mut guard, self.config.clone(), Some(leader_id));
+        self.reset_to_follower(&mut guard, Some(leader_id));
         match guard
             .sm
             .append_entries(args.prev_length, args.prev_term, &args.entries)
@@ -243,7 +248,7 @@ impl RaftChat for MyRaftChat {
         request: Request<RequestVoteArgs>,
     ) -> Result<Response<RequestVoteRes>, Status> {
         let args: RequestVoteArgs = request.into_inner();
-        let mut guard = self.state.clone().lock_arc();
+        let mut guard = self.state.lock();
         let Some(candidate_id) = self.config.get_peer(&args.candidate_id) else {
             unimplemented!();
         };
@@ -254,7 +259,7 @@ impl RaftChat for MyRaftChat {
                 vote_granted: false,
             }));
         }
-        RaftState::reset_to_follower(&mut guard, self.config.clone(), None);
+        self.reset_to_follower(&mut guard, None);
         Ok(Response::new(RequestVoteRes {
             term: current_term,
             vote_granted: true,
@@ -345,29 +350,6 @@ impl RaftChat for MyRaftChat {
     }
 }
 
-pub fn publisher(
-    state: Arc<Mutex<RaftState>>,
-    log_tx: mpsc::Sender<Entry>,
-    committed_length_cvar: Arc<Condvar>,
-) {
-    let mut sent_length: usize = 0;
-    let mut guard = state.lock();
-    loop {
-        let committed_length = guard.committed_length as usize;
-        if sent_length < committed_length {
-            let entries = guard.sm.wal().as_slice()[sent_length..committed_length].to_vec();
-            drop(guard);
-            for entry in entries {
-                log_tx.blocking_send(entry).unwrap();
-            }
-            sent_length = committed_length;
-            guard = state.lock();
-        } else {
-            committed_length_cvar.wait(&mut guard);
-        }
-    }
-}
-
 pub fn run_raft(
     config: RaftConfig,
     log_tx: mpsc::Sender<Entry>,
@@ -376,10 +358,9 @@ pub fn run_raft(
     let serve_addr = config.serve_addr;
     let persistent_state_path = config.persistent_state_path;
     let wal_path = config.wal_path;
-    let committed_length_cvar = Arc::new(Condvar::new());
     let raft_chat = Arc::new(MyRaftChat {
-        config: Arc::new(config),
-        state: Arc::new(Mutex::new(RaftState {
+        config: config,
+        state: Mutex::new(RaftState {
             persistent_state: PersistentState::new(persistent_state_path),
             sm: SMWrapper::new(WAL::new(wal_path)),
             committed_length: 0,
@@ -388,23 +369,20 @@ pub fn run_raft(
                 timeout_handle: AbortOnDropHandle::new(task::spawn(async {})),
             }),
             connections: HashMap::new(),
-        })),
-        committed_length_cvar: committed_length_cvar.clone(),
+        }),
+        committed_length_cvar: Condvar::new(),
     });
-
-    let state = raft_chat.state.clone();
-    task::spawn_blocking(move || publisher(state, log_tx, committed_length_cvar));
 
     raft_chat.state.lock().role = Role::Follower(FollowerState {
         current_leader: None,
-        timeout_handle: AbortOnDropHandle::new(task::spawn(RaftState::timeout_future(
-            raft_chat.state.clone(),
-            raft_chat.config.clone(),
-        ))),
+        timeout_handle: AbortOnDropHandle::new(task::spawn(raft_chat.clone().timeout_future())),
     });
 
+    let raft_chat_cloned = raft_chat.clone();
+    task::spawn_blocking(move || raft_chat_cloned.publisher_thread(log_tx));
+
     let rpc_future = Server::builder()
-        .add_service(RaftChatServer::from_arc(raft_chat))
+        .add_service(RaftChatServer::new(raft_chat))
         .serve(serve_addr);
     task::spawn(rpc_future);
 }
