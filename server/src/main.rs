@@ -68,13 +68,10 @@ async fn setup() -> Config {
     let mut peers: Vec<String> = env::var("DOMAINS")
         .unwrap()
         .split(',')
-        .map(|s|{
-            s.trim().to_string()
-        })
+        .map(|s| s.trim().to_string())
         .collect();
 
     let self_id = peers.remove(self_domain_idx);
-
 
     let web_port: u16 = env::var("WEB_PORT")
         .ok()
@@ -128,12 +125,14 @@ async fn run_tasks(
 ) -> (
     Sender<(String, data_model::msg::ClientMsg)>,
     Sender<(String, SplitSink<WebSocketStream<TcpStream>, Message>)>,
-) { 
+) {
     let raft_config = raft::RaftConfig {
         // rpc address
         serve_addr: SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), config.rpc_port),
         // unique ID for raft node
-        self_id: Box::leak((format!("http://{}:{}", config.self_id, config.rpc_port)).into_boxed_str()),
+        self_id: Box::leak(
+            (format!("http://{}:{}", config.self_id, config.rpc_port)).into_boxed_str(),
+        ),
         peers: config
             .peers
             .iter()
