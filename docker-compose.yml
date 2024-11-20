@@ -1,14 +1,14 @@
 services:
-  server:  
+  server:
     image: raftchat/raftchat:latest
-    container_name: raftchat_server 
-    ports: 
-      - "3000:3000" 
+    container_name: raftchat_server
+    ports:
+      - "3000:3000"
       - "9001:9001"
     restart: always
     volumes:
+      - ./config:/usr/local/bin/raftchat/config
       - ./logs:/usr/local/bin/raftchat/logs
-
   node_exporter:
     image: quay.io/prometheus/node-exporter:latest
     container_name: node_exporter
@@ -25,7 +25,5 @@ services:
     image: grafana/promtail:latest
     volumes:
       - ./logs:/logs
-      - ./promtail-config.yml:/etc/promtail/config.yml 
+      - ./promtail-config.yml:/etc/promtail/config.yml
     command: -config.file=/etc/promtail/config.yml
-  
-    

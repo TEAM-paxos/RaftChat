@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 
 hostname=$(hostname)
+
+sed -i "s/^SELF_DOMAIN_IDX=0$/SELF_DOMAIN_IDX=$DOMAIN_IDX/" ./config/config.env
 sed -i "s/{address}/$SERVER_ADDRESS/g" promtail-config.yml
 sed -i "s/{hostname}/$hostname/g" promtail-config.yml
 
