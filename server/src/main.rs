@@ -1,11 +1,12 @@
 use axum::Extension;
 use axum::{routing::get, Router};
+use clap::{Parser, Subcommand};
 use futures_util::stream::SplitSink;
 use log::info;
-use raft::mock_raft;
 use std::collections::HashMap;
 use std::env;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::net::TcpListener;
 use tokio::net::TcpStream;
@@ -20,24 +21,61 @@ mod events;
 #[derive(Clone, serde::Serialize, Debug)]
 struct Config {
     peers: Vec<String>, // [TODO] change to Vec<&str>
-    port: u16,
+    web_port: u16,
     socket_port: u16,
+    rpc_port: u16,
     version: String,
+    self_id: u16,
+}
+
+#[derive(Parser)]
+#[command(version, about, long_about = None)]
+struct Cli {
+    /// path of config.env
+    #[arg(short, long, value_name = "config path")]
+    config: Option<PathBuf>,
+
+    /// path of log4rs.yml
+    #[arg(short, long, value_name = "log yaml path")]
+    log: Option<PathBuf>,
+
+    /// debug mode | true false
+    #[arg(short, long, value_name = "debug flag")]
+    debug: bool,
 }
 
 async fn setup() -> Config {
-    // log setting
-    log4rs::init_file("../config/log4rs.yaml", Default::default()).unwrap();
+    let cli = Cli::parse();
+
+    let config_path = cli
+        .config
+        .unwrap_or_else(|| PathBuf::from("./config/config.env"));
+    let log_config_path = cli
+        .log
+        .unwrap_or_else(|| PathBuf::from("./config/log4rs.yaml"));
 
     // config setting
-    dotenv::from_path("../config/config.env").unwrap();
+    dotenv::from_path(config_path).unwrap();
+    // log setting
+    log4rs::init_file(log_config_path, Default::default()).unwrap();
 
-    let peers: Vec<String> = env::var("PEER")
+    let self_domain_idx: usize = env::var("SELF_DOMAIN_IDX")
+        .ok()
+        .and_then(|val| val.parse::<usize>().ok())
+        .unwrap_or(0);
+    let peers: Vec<String> = env::var("DOMAINS")
         .unwrap()
         .split(',')
-        .map(|s| s.trim().to_string())
+        .enumerate()
+        .filter_map(|(idx, s)| {
+            if idx == self_domain_idx {
+                None
+            } else {
+                Some(s.trim().to_string())
+            }
+        })
         .collect();
-    let port: u16 = env::var("WEB_PORT")
+    let web_port: u16 = env::var("WEB_PORT")
         .ok()
         .and_then(|val| val.parse::<u16>().ok())
         .unwrap_or(3001);
@@ -47,19 +85,26 @@ async fn setup() -> Config {
         .and_then(|val| val.parse::<u16>().ok())
         .unwrap_or(9001);
 
+    let rpc_port: u16 = env::var("RPC_PORT")
+        .ok()
+        .and_then(|val| val.parse::<u16>().ok())
+        .unwrap_or(3010);
+
     let version: String = env::var("VERSION").unwrap();
 
     return Config {
-        peers: peers,
-        port: port,
-        socket_port: socket_port,
-        version: version,
+        peers,
+        web_port,
+        socket_port,
+        version,
+        self_id: self_domain_idx as u16,
+        rpc_port,
     };
 }
 
 async fn run_axum(config: &Config) {
     // axum server
-    let addr = SocketAddr::from(([0, 0, 0, 0], config.port));
+    let addr = SocketAddr::from(([0, 0, 0, 0], config.web_port));
     let app = Router::new()
         .route("/", get(axum_handler::handler))
         .nest_service("/static", ServeDir::new("../client/static"))
@@ -84,11 +129,15 @@ async fn run_tasks(
     Sender<(String, SplitSink<WebSocketStream<TcpStream>, Message>)>,
 ) {
     let raft_config = raft::RaftConfig {
-        serve_addr: SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8080),
-        self_id: "server1",
+        // rpc address
+        serve_addr: SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), config.rpc_port),
+        // unique ID for raft node
+        // [TODO] Does self id need to be a string domain?
+        self_id: Box::leak(config.self_id.to_string().into_boxed_str()),
         peers: config
             .peers
             .iter()
+            .map(|n| format!("http://{}:{}", n, config.rpc_port))
             .map(|s| s.clone().leak() as &'static str)
             .collect(),
         election_duration: tokio::time::Duration::from_millis(1000),
@@ -96,6 +145,7 @@ async fn run_tasks(
         persistent_state_path: std::path::Path::new("TODO : path to persistent_state"),
         wal_path: std::path::Path::new("TODO : path to wal"),
     };
+
     let (log_tx, log_rx) = mpsc::channel(15);
     let (req_tx, req_rx) = mpsc::channel(15);
     if true {

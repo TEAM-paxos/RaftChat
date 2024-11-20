@@ -7,6 +7,7 @@ authors = [
     "SoonWon Moon <damhiya@gmail.com>",
     "Bumsung Baek <highcloud100@inha.edu>",
 ]
+description = "chatting program on raft algorithm"
 
 [dependencies]
 tonic = "0.12"
