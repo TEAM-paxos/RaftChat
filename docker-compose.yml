@@ -1,14 +1,32 @@
+# 300
 services:
   server:
     image: raftchat/raftchat:latest
     container_name: raftchat_server
     ports:
       - "3000:3000"
-      - "9001:9001"
+    #   - "9001:9001"
     restart: always
     volumes:
       - ./config:/usr/local/bin/raftchat/config
       - ./logs:/usr/local/bin/raftchat/logs
+
+  toxiproxy:
+    image: "shopify/toxiproxy"
+    ports:
+      - "3009:8474"
+      - "9001:9001"
+      - "3010:3011"
+
+  toxiproxy-config:
+    image: "shopify/toxiproxy"
+    depends_on:
+      - server
+      - toxiproxy
+    entrypoint: > 
+      sh -c "/go/bin/toxiproxy-cli -h toxiproxy:8474 create socket --listen 0.0.0.0:9001 --upstream server:9001; 
+             /go/bin/toxiproxy-cli -h toxiproxy:8474 create rpc --listen 0.0.0.0:3010 --upstream sever:3010;"
+
   node_exporter:
     image: quay.io/prometheus/node-exporter:latest
     container_name: node_exporter
