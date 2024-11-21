@@ -5,11 +5,11 @@ pub mod state_machine;
 pub mod wal;
 
 use parking_lot::{Condvar, Mutex, MutexGuard};
+use rand::Rng;
 use std::cmp::{max, min};
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::path::Path;
-use std::pin;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::{mpsc, oneshot};
@@ -24,7 +24,7 @@ use raftchat_tonic::{RequestVoteArgs, RequestVoteRes};
 use raftchat_tonic::{UserRequestArgs, UserRequestRes};
 
 use tonic::transport::{Channel, Endpoint, Server};
-use tonic::{client, Request, Response, Status};
+use tonic::{Request, Response, Status};
 
 use persistent_state::PersistentState;
 use state_machine::{SMWrapper, UserMessageIdMap};
@@ -39,8 +39,8 @@ use std::pin::Pin;
 pub struct RaftConfig {
     pub serve_addr: SocketAddr,
     pub self_id: &'static str,
-    pub peers: Vec<&'static str>, // except self
-    pub election_duration: Duration,
+    pub peers: Vec<&'static str>,      // except self
+    pub election_duration: (u64, u64), // lower~upper bound (ms)
     pub heartbeat_duration: Duration,
     pub persistent_state_path: &'static Path,
     pub wal_path: &'static Path,
@@ -97,7 +97,10 @@ pub struct MyRaftChat {
 
 impl MyRaftChat {
     async fn timeout_future(self: Arc<Self>) {
-        time::sleep(self.config.election_duration).await;
+        let rand_duration = rand::thread_rng()
+            .gen_range(self.config.election_duration.0..self.config.election_duration.1);
+
+        time::sleep(std::time::Duration::from_millis(rand_duration)).await;
         let mut guard = self.state.lock();
         // TODO : Add checking for term and role
 
