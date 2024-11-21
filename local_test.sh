@@ -1,9 +1,12 @@
 #!/bin/bash
 
+if [ $# -ne 1  ]; then
+    echo "usage: $0 <raft node idx>"
+    exit 1
+fi
+
 config_file="../config/test.env"
 log_file="../config/log4rs.yaml"
-
-pids=()
 
 cargo build
 rm -r test$1
@@ -21,13 +24,12 @@ if [ ! -f "$log_file" ]; then
   exit 1
 fi
 
-sed "s/^SELF_DOMAIN_IDX=0$/SELF_DOMAIN_IDX=$1/" $config_file > test$1.env
-  ./server -c test$1.env -l $log_file &
-  pids+=($!);
+RANDOM_VERSION="0.$((RANDOM % 10)).$((RANDOM % 100))"
 
-echo "Started processes with the following PIDs:"
-for pid in "${pids[@]}"; do
-  echo "$pid"
-done
+
+sed "s/^SELF_DOMAIN_IDX=0$/SELF_DOMAIN_IDX=$1/" $config_file > test$1.env
+sed -i "s/^VERSION=.*/VERSION=\"$RANDOM_VERSION\"/" test$1.env
+
+./server -c test$1.env -l $log_file
 
 #kill $(ps  | grep server | awk '{print $1}')
