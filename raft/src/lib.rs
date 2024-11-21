@@ -23,7 +23,7 @@ use raftchat_tonic::{RequestVoteArgs, RequestVoteRes};
 use raftchat_tonic::{UserRequestArgs, UserRequestRes};
 
 use tonic::transport::{Channel, Endpoint, Server};
-use tonic::{Request, Response, Status};
+use tonic::{client, Request, Response, Status};
 
 use persistent_state::PersistentState;
 use state_machine::{SMWrapper, UserMessageIdMap};
@@ -31,7 +31,7 @@ use wal::WAL;
 
 use tokio_util::task::AbortOnDropHandle;
 
-use log::info;
+use log::{debug, info};
 
 #[derive(Debug)]
 pub struct RaftConfig {
@@ -119,6 +119,7 @@ impl MyRaftChat {
                         entries: vec![],
                         committed_length: guard.committed_length,
                     };
+                    info!("{} send heartbeat to {}", self.config.self_id, peer);
                     task::spawn(self.clone().append_entries_future(peer, client, args));
                 }
             } else {
@@ -227,6 +228,7 @@ impl MyRaftChat {
     }
 
     fn reset_to_candidate(self: &Arc<Self>, guard: &mut MutexGuard<RaftState>) {
+        info!("reset to candidate");
         guard.role = Role::Candidate(CandidateState {
             election_handle: AbortOnDropHandle::new(task::spawn(self.clone().election_future())),
             timeout_handle: AbortOnDropHandle::new(task::spawn(self.clone().timeout_future())),
@@ -321,6 +323,7 @@ impl RaftChat for Arc<MyRaftChat> {
             unimplemented!();
         };
         self.reset_to_follower(&mut guard, Some(leader_id));
+
         match guard
             .sm
             .append_entries(args.prev_length, args.prev_term, &args.entries)
@@ -336,6 +339,7 @@ impl RaftChat for Arc<MyRaftChat> {
                 );
                 drop(guard);
                 self.committed_length_cvar.notify_one();
+
                 Ok(Response::new(AppendEntriesRes {
                     term: current_term,
                     success: true,
@@ -391,17 +395,19 @@ impl RaftChat for Arc<MyRaftChat> {
                     let args = request.into_inner();
 
                     // 1. blocking
-                    let client_committed_idx = sm.state().get(&args.client_id);
+                    match sm.state().get(&args.client_id) {
+                        Some(message_id) => {
+                            if message_id + 1 != args.message_id {
+                                return Ok(Response::new(UserRequestRes { success: false }));
+                            }
+                        }
+                        None => {
+                            if args.message_id != 1 {
+                                return Ok(Response::new(UserRequestRes { success: false }));
+                            }
+                        }
+                    };
 
-                    if (client_committed_idx == None && args.message_id != 1)
-                        || client_committed_idx.unwrap() + 1 != args.message_id
-                    {
-                        info!(
-                            "message blocked | raft's message id {:?} |  message's time stamp: {}",
-                            client_committed_idx, args.message_id
-                        );
-                        return Ok(Response::new(UserRequestRes { success: false }));
-                    }
 
                     // 2. append log in wal
                     let proposed_idx = sm.propose_entry(Entry {
