@@ -114,7 +114,7 @@ impl MyRaftChat {
                 for (peer, client) in guard.connections.clone() {
                     let prev_length = s.prev_length[peer];
                     let args = AppendEntriesArgs {
-                        term: guard.persistent_state.get_current_term(),
+                        term: guard.persistent_state.current_term(),
                         leader_id: String::from(self.config.self_id),
                         prev_length: prev_length,
                         prev_term: guard.sm.wal().last_term_for(prev_length),
@@ -139,7 +139,7 @@ impl MyRaftChat {
                 candidate_id: String::from(self.config.self_id),
                 prev_length: guard.sm.wal().len(),
                 prev_term: guard.sm.wal().last_term(),
-                term: guard.persistent_state.get_current_term(),
+                term: guard.persistent_state.current_term(),
             };
             let connections = guard.connections.clone();
             (req, connections)
@@ -196,7 +196,7 @@ impl MyRaftChat {
             if res.term == term {
                 let mut guard = self.state.lock();
                 if let (true, Role::Leader(ref mut s)) = (
-                    guard.persistent_state.get_current_term() == term,
+                    guard.persistent_state.current_term() == term,
                     &mut guard.role,
                 ) {
                     if res.success {
@@ -285,7 +285,7 @@ impl MyRaftChat {
                     let client = guard.connections[peer].clone();
                     let prev_length = s.prev_length[peer];
                     let args = AppendEntriesArgs {
-                        term: guard.persistent_state.get_current_term(),
+                        term: guard.persistent_state.current_term(),
                         leader_id: String::from(self.config.self_id),
                         prev_length: prev_length,
                         prev_term: guard.sm.wal().last_term_for(prev_length),
@@ -414,7 +414,7 @@ impl RaftChat for Arc<MyRaftChat> {
 
                     // 2. append log in wal
                     let proposed_idx = sm.propose_entry(Entry {
-                        term: persistent_state.get_current_term(),
+                        term: persistent_state.current_term(),
                         command: Some(Command {
                             client_id: args.client_id,
                             message_id: args.message_id,

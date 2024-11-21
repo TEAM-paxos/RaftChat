@@ -18,7 +18,8 @@ pub trait StateMachine {
 pub struct SMWrapper<S> {
     wal: WAL,
     state: S,
-    snapshot: (u64, S),
+    snapshot_length: u64,
+    snapshot: S,
 }
 
 #[derive(Clone)]
@@ -55,7 +56,8 @@ where
         SMWrapper {
             wal: wal,
             state: state,
-            snapshot: (0, StateMachine::new()),
+            snapshot_length: 0,
+            snapshot: StateMachine::new(),
         }
     }
 
@@ -64,12 +66,11 @@ where
     }
 
     pub fn take_snapshot(&mut self, len: u64) {
-        let snapshot_length = self.snapshot.0;
+        let snapshot_length = self.snapshot_length;
         if snapshot_length <= len {
-            self.snapshot.0 = len;
+            self.snapshot_length = len;
             self.snapshot
-                .1
-                .apply_entries(&self.wal.as_slice()[len as usize..]);
+                .apply_entries(&self.wal.as_slice()[snapshot_length as usize..len as usize]);
         } else {
             panic!();
         }
@@ -94,9 +95,9 @@ where
 
         match action {
             Some(Action::Update(l, entries)) => {
-                let snapshot_length = self.snapshot.0;
+                let snapshot_length = self.snapshot_length;
                 if snapshot_length <= l {
-                    self.state = self.snapshot.1.clone();
+                    self.state = self.snapshot.clone();
                     self.state
                         .apply_entries(&self.wal.as_slice()[snapshot_length as usize..]);
                     Some(l + entries.len() as u64)
