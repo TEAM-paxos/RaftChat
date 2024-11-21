@@ -31,6 +31,7 @@ use wal::WAL;
 
 use tokio_util::task::AbortOnDropHandle;
 
+#[derive(Debug)]
 pub struct RaftConfig {
     pub serve_addr: SocketAddr,
     pub self_id: &'static str,
@@ -168,6 +169,8 @@ impl MyRaftChat {
         if elected {
             let mut guard = self.state.lock();
             self.reset_to_leader(&mut guard);
+            drop(guard);
+            self.propose_cvar.notify_all();
         }
     }
 
@@ -236,6 +239,7 @@ impl MyRaftChat {
         });
     }
 
+    // receive request from web server
     pub fn user_request_thread(self: Arc<Self>, mut req_rx: mpsc::Receiver<UserRequestArgs>) {
         while let Some(args) = req_rx.blocking_recv() {
             let self_cloned = self.clone();
@@ -243,6 +247,7 @@ impl MyRaftChat {
         }
     }
 
+    // publish committed log to web server
     pub fn publisher_thread(self: Arc<Self>, log_tx: mpsc::Sender<Entry>) {
         let mut sent_length: usize = 0;
         let mut guard = self.state.lock();
@@ -263,7 +268,8 @@ impl MyRaftChat {
     }
 
     pub fn peer_thread(self: Arc<Self>, peer: &'static str) {
-        let mut guard = self.state.lock();
+        let mut guard: parking_lot::lock_api::MutexGuard<'_, parking_lot::RawMutex, RaftState> =
+            self.state.lock();
         'LOOP: loop {
             if let Role::Leader(s) = &guard.role {
                 if s.match_length[peer] < guard.sm.wal().len() {
@@ -380,7 +386,7 @@ impl RaftChat for Arc<MyRaftChat> {
                     // 1. blocking
                     let client_committed_idx = sm.state().get(&args.client_id);
 
-                    if client_committed_idx == None
+                    if (client_committed_idx == None && args.message_id != 1)
                         || client_committed_idx.unwrap() + 1 != args.message_id
                     {
                         return Ok(Response::new(UserRequestRes { success: false }));
@@ -399,9 +405,10 @@ impl RaftChat for Arc<MyRaftChat> {
                     // 3. append channel raft state
                     let (tx, rx) = oneshot::channel();
                     leader_state.commit_alarm.push((proposed_idx, tx));
-
                     drop(guard);
+
                     // 4. call commit func - notify peer threads
+                    self.propose_cvar.notify_all();
 
                     // 5. waiting commit
                     match rx.blocking_recv() {
@@ -476,7 +483,7 @@ pub fn run_raft(
     task::spawn_blocking(move || raft_chat_cloned.publisher_thread(log_tx));
 
     for peer in raft_chat.config.peers.iter().copied() {
-        let raft_chat_cloned = raft_chat.clone();
+        let raft_chat_cloned: Arc<MyRaftChat> = raft_chat.clone();
         task::spawn_blocking(move || raft_chat_cloned.peer_thread(peer));
     }
 

@@ -27,7 +27,7 @@ struct Config {
     rpc_ports: Vec<u16>,
     version: String,
     self_domain_idx: usize,
-    raft_mock_flag: bool
+    raft_mock_flag: bool,
 }
 
 #[derive(Parser)]
@@ -41,7 +41,7 @@ struct Cli {
     #[arg(short, long, value_name = "log yaml path")]
     log: Option<PathBuf>,
 
-    /// debug mode 
+    /// debug mode
     #[arg(short, long, value_name = "debug flag")]
     debug: bool,
 
@@ -88,7 +88,7 @@ async fn setup() -> Config {
         .map(|val| val.parse::<u16>().unwrap_or(9001))
         .collect();
 
-    let rpc_ports:  Vec<u16> = env::var("RPC_PORT")
+    let rpc_ports: Vec<u16> = env::var("RPC_PORT")
         .unwrap()
         .split(',')
         .map(|val| val.parse::<u16>().unwrap_or(9001))
@@ -97,13 +97,13 @@ async fn setup() -> Config {
     let version: String = env::var("VERSION").unwrap();
 
     return Config {
-        raft_mock_flag : cli.raft_mock_flag,
+        raft_mock_flag: cli.raft_mock_flag,
         domains,
         web_ports,
         socket_ports,
         rpc_ports,
         version,
-        self_domain_idx
+        self_domain_idx,
     };
 }
 
@@ -135,19 +135,29 @@ async fn run_tasks(
 ) {
     let raft_config = raft::RaftConfig {
         // rpc address
-        serve_addr: SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), config.rpc_ports[config.self_domain_idx]),
+        serve_addr: SocketAddr::new(
+            IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)),
+            config.rpc_ports[config.self_domain_idx],
+        ),
         // unique ID for raft node
-        self_id: format!("http://{}:{}", config.domains[config.self_domain_idx], config.rpc_ports[config.self_domain_idx]).leak() as &'static str, 
-        peers: config.domains.clone()
-        .into_iter()
-        .enumerate()
-        .filter_map(|(idx, s)| {
-            if idx == config.self_domain_idx {
-                None
-            } else {
-                Some(format!("http://{}:{}", s, config.rpc_ports[idx]).leak() as &'static str)
-            }
-        }).collect(),
+        self_id: format!(
+            "http://{}:{}",
+            config.domains[config.self_domain_idx], config.rpc_ports[config.self_domain_idx]
+        )
+        .leak() as &'static str,
+        peers: config
+            .domains
+            .clone()
+            .into_iter()
+            .enumerate()
+            .filter_map(|(idx, s)| {
+                if idx == config.self_domain_idx {
+                    None
+                } else {
+                    Some(format!("http://{}:{}", s, config.rpc_ports[idx]).leak() as &'static str)
+                }
+            })
+            .collect(),
         election_duration: tokio::time::Duration::from_millis(1000),
         heartbeat_duration: tokio::time::Duration::from_millis(250),
         persistent_state_path: std::path::Path::new("TODO : path to persistent_state"),
