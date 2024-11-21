@@ -9,6 +9,7 @@ use std::cmp::{max, min};
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::path::Path;
+use std::pin;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::{mpsc, oneshot};
@@ -32,6 +33,7 @@ use wal::WAL;
 use tokio_util::task::AbortOnDropHandle;
 
 use log::{debug, info};
+use std::pin::Pin;
 
 #[derive(Debug)]
 pub struct RaftConfig {
@@ -382,7 +384,9 @@ impl RaftChat for Arc<MyRaftChat> {
         request: Request<UserRequestArgs>,
     ) -> Result<Response<UserRequestRes>, Status> {
         let mut client;
-        {
+        let future: Pin<
+            Box<dyn Send + std::future::Future<Output = Result<Response<UserRequestRes>, Status>>>,
+        > = {
             let mut guard = self.state.lock();
 
             match &mut *guard {
@@ -408,7 +412,6 @@ impl RaftChat for Arc<MyRaftChat> {
                         }
                     };
 
-
                     // 2. append log in wal
                     let proposed_idx = sm.propose_entry(Entry {
                         term: persistent_state.get_current_term(),
@@ -428,11 +431,15 @@ impl RaftChat for Arc<MyRaftChat> {
                     self.propose_cvar.notify_all();
 
                     // 5. waiting commit
-                    match rx.blocking_recv() {
-                        Ok(true) => return Ok(Response::new(UserRequestRes { success: true })),
-                        Ok(false) => return Ok(Response::new(UserRequestRes { success: false })),
-                        Err(_) => return Ok(Response::new(UserRequestRes { success: false })),
-                    };
+                    Box::pin(async {
+                        match rx.blocking_recv() {
+                            Ok(true) => return Ok(Response::new(UserRequestRes { success: true })),
+                            Ok(false) => {
+                                return Ok(Response::new(UserRequestRes { success: false }))
+                            }
+                            Err(_) => return Ok(Response::new(UserRequestRes { success: false })),
+                        }
+                    })
                 }
                 RaftState {
                     role: Role::Follower(follower_state),
@@ -446,6 +453,11 @@ impl RaftChat for Arc<MyRaftChat> {
                             .clone();
 
                         drop(guard);
+
+                        Box::pin(async {
+                            let res = client.user_request(request).await;
+                            res
+                        })
                     } else {
                         return Ok(Response::new(UserRequestRes { success: false }));
                     }
@@ -457,10 +469,9 @@ impl RaftChat for Arc<MyRaftChat> {
                     return Ok(Response::new(UserRequestRes { success: false }));
                 }
             }
-        }
+        };
 
-        let res = client.user_request(request).await?;
-        return Ok(res);
+        future.await
     }
 }
 
