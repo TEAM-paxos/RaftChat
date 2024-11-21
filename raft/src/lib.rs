@@ -236,6 +236,13 @@ impl MyRaftChat {
         });
     }
 
+    pub fn user_request_thread(self: Arc<Self>, mut req_rx: mpsc::Receiver<UserRequestArgs>) {
+        while let Some(args) = req_rx.blocking_recv() {
+            let self_cloned = self.clone();
+            task::spawn(async move { self_cloned.user_request(Request::new(args)).await });
+        }
+    }
+
     pub fn publisher_thread(self: Arc<Self>, log_tx: mpsc::Sender<Entry>) {
         let mut sent_length: usize = 0;
         let mut guard = self.state.lock();
@@ -461,6 +468,9 @@ pub fn run_raft(
         current_leader: None,
         timeout_handle: AbortOnDropHandle::new(task::spawn(raft_chat.clone().timeout_future())),
     });
+
+    let raft_chat_cloned = raft_chat.clone();
+    task::spawn_blocking(move || raft_chat_cloned.user_request_thread(req_rx));
 
     let raft_chat_cloned = raft_chat.clone();
     task::spawn_blocking(move || raft_chat_cloned.publisher_thread(log_tx));
