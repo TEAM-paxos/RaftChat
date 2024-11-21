@@ -1,10 +1,8 @@
 use crate::raftchat_tonic::{Command, Entry};
 use crate::wal::{Action, WAL};
 use std::collections::HashMap;
-use std::fmt::Error;
-use std::os::linux::raw::stat;
 
-trait StateMachine {
+pub trait StateMachine {
     fn new() -> Self;
     fn apply(&mut self, cmd: &Command);
 

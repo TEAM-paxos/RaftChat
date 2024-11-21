@@ -2,7 +2,7 @@
 
 use crate::raftchat_tonic::Entry;
 use atomic_write_file::AtomicWriteFile;
-use std::{fmt::Error, path::Path};
+use std::path::Path;
 
 pub struct WAL {
     cache: Vec<Entry>,
@@ -26,6 +26,13 @@ impl WAL {
 
     pub fn last_term(&self) -> u64 {
         match self.cache.last() {
+            Some(entry) => entry.term,
+            None => 0,
+        }
+    }
+
+    pub fn last_term_for(&self, len: u64) -> u64 {
+        match self.cache[..len as usize].last() {
             Some(entry) => entry.term,
             None => 0,
         }

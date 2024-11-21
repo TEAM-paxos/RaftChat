@@ -48,8 +48,9 @@ impl RaftConfig {
 }
 
 pub struct LeaderState {
+    #[allow(dead_code)]
     heartbeat_handle: AbortOnDropHandle<()>,
-    next_length: HashMap<&'static str, u64>,
+    prev_length: HashMap<&'static str, u64>,
     match_length: HashMap<&'static str, u64>,
     // NB : alarm false to senders when dropping LeaderState
     commit_alarm: Vec<(u64, oneshot::Sender<bool>)>,
@@ -57,11 +58,14 @@ pub struct LeaderState {
 
 pub struct FollowerState {
     current_leader: Option<&'static str>,
+    #[allow(dead_code)]
     timeout_handle: AbortOnDropHandle<()>,
 }
 
 pub struct CandidateState {
+    #[allow(dead_code)]
     election_handle: AbortOnDropHandle<()>,
+    #[allow(dead_code)]
     timeout_handle: AbortOnDropHandle<()>,
 }
 
@@ -83,6 +87,7 @@ pub struct MyRaftChat {
     config: RaftConfig,
     state: Mutex<RaftState>,
     committed_length_cvar: Condvar,
+    propose_cvar: Condvar,
 }
 
 impl MyRaftChat {
@@ -96,9 +101,26 @@ impl MyRaftChat {
     }
 
     async fn heartbeat_future(self: Arc<Self>) {
-        time::sleep(self.config.heartbeat_duration).await;
-        let mut guard = self.state.lock();
-        // TODO
+        loop {
+            time::sleep(self.config.heartbeat_duration).await;
+            let guard = self.state.lock();
+            if let Role::Leader(s) = &guard.role {
+                for (peer, client) in guard.connections.clone() {
+                    let prev_length = s.prev_length[peer];
+                    let args = AppendEntriesArgs {
+                        term: guard.persistent_state.get_current_term(),
+                        leader_id: String::from(self.config.self_id),
+                        prev_length: prev_length,
+                        prev_term: guard.sm.wal().last_term_for(prev_length),
+                        entries: vec![],
+                        committed_length: guard.committed_length,
+                    };
+                    task::spawn(self.clone().append_entries_future(peer, client, args));
+                }
+            } else {
+                break;
+            }
+        }
     }
 
     async fn election_future(self: Arc<Self>) {
@@ -118,11 +140,11 @@ impl MyRaftChat {
 
         let (vote_tx, mut vote_rx) = mpsc::channel::<bool>(10);
         let mut handles = vec![];
-        for mut client in connections {
+        for (_peer, mut client) in connections {
             let req_cloned = req.clone();
             let vote_tx_cloned = vote_tx.clone();
             handles.push(AbortOnDropHandle::new(task::spawn(async move {
-                match client.1.request_vote(Request::new(req_cloned)).await {
+                match client.request_vote(Request::new(req_cloned)).await {
                     Ok(res) => vote_tx_cloned.send(res.into_inner().vote_granted).await,
                     Err(_) => vote_tx_cloned.send(false).await,
                 }
@@ -149,10 +171,43 @@ impl MyRaftChat {
         }
     }
 
+    async fn append_entries_future(
+        self: Arc<Self>,
+        peer: &'static str,
+        mut client: RaftChatClient<Channel>,
+        args: AppendEntriesArgs,
+    ) {
+        let term = args.term;
+        let prev_length = args.prev_length;
+        let entries_len = args.entries.len() as u64;
+        if let Ok(res) = client.append_entries(Request::new(args)).await {
+            let res = res.into_inner();
+            if res.term == term {
+                let mut guard = self.state.lock();
+                if let (true, Role::Leader(ref mut s)) = (
+                    guard.persistent_state.get_current_term() == term,
+                    &mut guard.role,
+                ) {
+                    if res.success {
+                        // TODO : Check this
+                        let l = s.match_length.get_mut(peer).unwrap();
+                        let new_l = max(*l, prev_length + entries_len);
+                        *l = new_l;
+                        s.prev_length.insert(peer, new_l);
+                    } else {
+                        assert!(prev_length > 0); // NB : If prev_length == 0 and res.term == term,
+                                                  // then it is absurd to reject append entries rpc
+                        s.prev_length.insert(peer, prev_length - 1);
+                    }
+                }
+            }
+        }
+    }
+
     fn reset_to_leader(self: &Arc<Self>, guard: &mut MutexGuard<RaftState>) {
         guard.role = Role::Leader(LeaderState {
             heartbeat_handle: AbortOnDropHandle::new(task::spawn(self.clone().heartbeat_future())),
-            next_length: self
+            prev_length: self
                 .config
                 .peers
                 .iter()
@@ -197,6 +252,34 @@ impl MyRaftChat {
             } else {
                 self.committed_length_cvar.wait(&mut guard);
             }
+        }
+    }
+
+    pub fn peer_thread(self: Arc<Self>, peer: &'static str) {
+        let mut guard = self.state.lock();
+        'LOOP: loop {
+            if let Role::Leader(s) = &guard.role {
+                if s.match_length[peer] < guard.sm.wal().len() {
+                    let client = guard.connections[peer].clone();
+                    let prev_length = s.prev_length[peer];
+                    let args = AppendEntriesArgs {
+                        term: guard.persistent_state.get_current_term(),
+                        leader_id: String::from(self.config.self_id),
+                        prev_length: prev_length,
+                        prev_term: guard.sm.wal().last_term_for(prev_length),
+                        entries: guard.sm.wal().as_slice()
+                            [prev_length as usize..prev_length as usize + 1]
+                            .to_vec(),
+                        committed_length: guard.committed_length,
+                    };
+                    drop(guard);
+                    tokio::runtime::Handle::current()
+                        .block_on(self.clone().append_entries_future(peer, client, args));
+                    guard = self.state.lock();
+                    continue 'LOOP;
+                }
+            }
+            self.propose_cvar.wait(&mut guard);
         }
     }
 }
@@ -371,6 +454,7 @@ pub fn run_raft(
             connections: HashMap::new(),
         }),
         committed_length_cvar: Condvar::new(),
+        propose_cvar: Condvar::new(),
     });
 
     raft_chat.state.lock().role = Role::Follower(FollowerState {
@@ -380,6 +464,11 @@ pub fn run_raft(
 
     let raft_chat_cloned = raft_chat.clone();
     task::spawn_blocking(move || raft_chat_cloned.publisher_thread(log_tx));
+
+    for peer in raft_chat.config.peers.iter().copied() {
+        let raft_chat_cloned = raft_chat.clone();
+        task::spawn_blocking(move || raft_chat_cloned.peer_thread(peer));
+    }
 
     let rpc_future = Server::builder()
         .add_service(RaftChatServer::new(raft_chat))
