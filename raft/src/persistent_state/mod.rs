@@ -18,11 +18,11 @@ impl PersistentState {
         }
     }
 
-    pub fn get_current_term(&self) -> u64 {
+    pub fn current_term(&self) -> u64 {
         self.current_term
     }
 
-    pub fn get_voted_for(&self) -> Option<&'static str> {
+    pub fn voted_for(&self) -> Option<&'static str> {
         self.voted_for
     }
 
