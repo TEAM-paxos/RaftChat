@@ -8,6 +8,8 @@ appenders:
     filters:
       - kind: threshold
         level: info
+    encoder:
+      pattern: "{d(%Y-%m-%d %H:%M:%S)(utc)} - {l}:{M}:{L}: {m}{n}"
 
   trace:
     kind: file
@@ -16,7 +18,7 @@ appenders:
         level: trace
     path: "logs/trace.log"
     encoder:
-      pattern: "{d(%Y-%m-%d %H:%M:%S %Z)(utc)} - {l}:{m}{n}"
+      pattern: "{d(%Y-%m-%d %H:%M:%S)(kst)} - {l}:{M}:{L}: {m}{n}"
 
   debug:
     kind: file
@@ -25,7 +27,7 @@ appenders:
         level: debug
     path: "logs/debug.log"
     encoder:
-      pattern: "{d(%Y-%m-%d %H:%M:%S %Z)(utc)} - {l}:{m}{n}"
+      pattern: "{d(%Y-%m-%d %H:%M:%S)(utc)} - {l}:{M}:{L}: {m}{n}"
 
   info:
     kind: file
@@ -34,7 +36,7 @@ appenders:
         level: info
     path: "logs/info.log"
     encoder:
-      pattern: "{d(%Y-%m-%d %H:%M:%S %Z)(utc)} - {l}:{m}{n}"
+      pattern: "{d(%Y-%m-%d %H:%M:%S)(utc)} - {l}:{M}:{L}: {m}{n}"
 
   error:
     kind: file
@@ -43,7 +45,7 @@ appenders:
         level: error
     path: "logs/error.log"
     encoder:
-      pattern: "{d(%Y-%m-%d %H:%M:%S %Z)(utc)} - {l}:{m}{n}"
+      pattern: "{d(%Y-%m-%d %H:%M:%S)(utc)} - {l}:{M}:{L}: {m}{n}"
 
 # Set the default logging level to "warn" and attach the "stdout" appender to the root
 root:

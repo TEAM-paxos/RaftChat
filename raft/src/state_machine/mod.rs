@@ -92,18 +92,21 @@ where
         entries: &[Entry],
     ) -> Option<u64> {
         let action = self.wal.append_entries(prev_length, prev_term, entries);
-        if let Some(Action::Update(l, entries)) = action {
-            let snapshot_length = self.snapshot_length;
-            if snapshot_length <= l {
-                self.state = self.snapshot.clone();
-                self.state
-                    .apply_entries(&self.wal.as_slice()[snapshot_length as usize..]);
-                Some(l + entries.len() as u64)
-            } else {
-                panic!();
+
+        match action {
+            Some(Action::Update(l, entries)) => {
+                let snapshot_length = self.snapshot_length;
+                if snapshot_length <= l {
+                    self.state = self.snapshot.clone();
+                    self.state
+                        .apply_entries(&self.wal.as_slice()[snapshot_length as usize..]);
+                    Some(l + entries.len() as u64)
+                } else {
+                    panic!();
+                }
             }
-        } else {
-            None
+            Some(Action::Id(n)) => Some(n),
+            None => None,
         }
     }
 

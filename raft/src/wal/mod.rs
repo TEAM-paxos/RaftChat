@@ -10,7 +10,7 @@ pub struct WAL {
 
 #[derive(Debug, PartialEq)]
 pub enum Action<'a> {
-    Id,
+    Id(u64),
     Update(u64, &'a [Entry]),
 }
 
@@ -71,7 +71,7 @@ impl WAL {
                                 break Action::Update(l as u64, entries);
                             }
                         }
-                        [] => break Action::Id,
+                        [] => break Action::Id(l as u64),
                     }
                 }
             };
@@ -199,7 +199,7 @@ mod tests {
                     mk_entry(2),
                 ]
             ),
-            Some(Action::Id)
+            Some(Action::Id(2))
         );
         assert_eq!(
             state.cache,
