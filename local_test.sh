@@ -3,13 +3,11 @@
 config_file="../config/test.env"
 log_file="../config/log4rs.yaml"
 
-count=${1:-3} 
-
 pids=()
 
 cargo build
-rm -r test
-mkdir test && cd test && mkdir logs
+rm -r test$1
+mkdir test$1 && cd test$1 && mkdir logs
 cp ../target/debug/server .
 cp -r ../client .
 
@@ -23,16 +21,13 @@ if [ ! -f "$log_file" ]; then
   exit 1
 fi
 
-echo "Running $count servers..."
-
-# 반복문 실행
-for ((i = 0; i < $count; i++)); do
-  sed "s/^SELF_DOMAIN_IDX=0$/SELF_DOMAIN_IDX=$i/" $config_file > test$i.env
-  ./server -c test$i.env -l $log_file &
+sed "s/^SELF_DOMAIN_IDX=0$/SELF_DOMAIN_IDX=$1/" $config_file > test$1.env
+  ./server -c test$1.env -l $log_file &
   pids+=($!);
-done
 
 echo "Started processes with the following PIDs:"
 for pid in "${pids[@]}"; do
   echo "$pid"
 done
+
+#kill $(ps  | grep server | awk '{print $1}')

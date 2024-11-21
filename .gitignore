@@ -2,4 +2,4 @@
 /target
 /client/node_modules
 *.log
-/test
+/test*
