@@ -1120,6 +1120,8 @@ name = "raft"
 version = "0.1.0"
 dependencies = [
  "atomic-write-file",
+ "log",
+ "log4rs",
  "parking_lot",
  "prost",
  "tokio",
