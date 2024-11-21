@@ -1,6 +1,6 @@
 use axum::Extension;
 use axum::{routing::get, Router};
-use clap::{Parser, Subcommand};
+use clap::Parser;
 use futures_util::stream::SplitSink;
 use log::{info, set_logger};
 use raft::persistent_state::PersistentState;
@@ -21,12 +21,13 @@ mod events;
 
 #[derive(Clone, serde::Serialize, Debug)]
 struct Config {
-    peers: Vec<String>, // [TODO] change to Vec<&str>
-    web_port: u16,
-    socket_port: u16,
-    rpc_port: u16,
+    domains: Vec<String>, // [TODO] change to Vec<&str>
+    web_ports: Vec<u16>,
+    socket_ports: Vec<u16>,
+    rpc_ports: Vec<u16>,
     version: String,
-    self_id: String,
+    self_domain_idx: usize,
+    raft_mock_flag: bool
 }
 
 #[derive(Parser)]
@@ -40,9 +41,13 @@ struct Cli {
     #[arg(short, long, value_name = "log yaml path")]
     log: Option<PathBuf>,
 
-    /// debug mode | true false
+    /// debug mode 
     #[arg(short, long, value_name = "debug flag")]
     debug: bool,
+
+    /// raft mock flag
+    #[arg(short, long, value_name = "debug flag")]
+    raft_mock_flag: bool,
 }
 
 async fn setup() -> Config {
@@ -65,47 +70,49 @@ async fn setup() -> Config {
         .and_then(|val| val.parse::<usize>().ok())
         .unwrap_or(0);
 
-    let mut peers: Vec<String> = env::var("DOMAINS")
+    let domains: Vec<String> = env::var("DOMAINS")
         .unwrap()
         .split(',')
         .map(|s| s.trim().to_string())
         .collect();
 
-    let self_id = peers.remove(self_domain_idx);
+    let web_ports: Vec<u16> = env::var("WEB_PORT")
+        .unwrap()
+        .split(',')
+        .map(|val| val.parse::<u16>().unwrap_or(3001))
+        .collect();
 
-    let web_port: u16 = env::var("WEB_PORT")
-        .ok()
-        .and_then(|val| val.parse::<u16>().ok())
-        .unwrap_or(3001);
+    let socket_ports: Vec<u16> = env::var("SOCKET_PORT")
+        .unwrap()
+        .split(',')
+        .map(|val| val.parse::<u16>().unwrap_or(9001))
+        .collect();
 
-    let socket_port: u16 = env::var("SOCKET_PORT")
-        .ok()
-        .and_then(|val| val.parse::<u16>().ok())
-        .unwrap_or(9001);
-
-    let rpc_port: u16 = env::var("RPC_PORT")
-        .ok()
-        .and_then(|val| val.parse::<u16>().ok())
-        .unwrap_or(3010);
+    let rpc_ports:  Vec<u16> = env::var("RPC_PORT")
+        .unwrap()
+        .split(',')
+        .map(|val| val.parse::<u16>().unwrap_or(9001))
+        .collect();
 
     let version: String = env::var("VERSION").unwrap();
 
     return Config {
-        peers,
-        web_port,
-        socket_port,
+        raft_mock_flag : cli.raft_mock_flag,
+        domains,
+        web_ports,
+        socket_ports,
+        rpc_ports,
         version,
-        self_id,
-        rpc_port,
+        self_domain_idx
     };
 }
 
 async fn run_axum(config: &Config) {
     // axum server
-    let addr = SocketAddr::from(([0, 0, 0, 0], config.web_port));
+    let addr = SocketAddr::from(([0, 0, 0, 0], config.web_ports[config.self_domain_idx]));
     let app = Router::new()
         .route("/", get(axum_handler::handler))
-        .nest_service("/static", ServeDir::new("../client/static"))
+        .nest_service("/static", ServeDir::new("./client/static"))
         .route("/get_info", get(axum_handler::get_info))
         .layer(Extension(config.clone()));
 
@@ -128,28 +135,34 @@ async fn run_tasks(
 ) {
     let raft_config = raft::RaftConfig {
         // rpc address
-        serve_addr: SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), config.rpc_port),
+        serve_addr: SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), config.rpc_ports[config.self_domain_idx]),
         // unique ID for raft node
-        self_id: Box::leak(
-            (format!("http://{}:{}", config.self_id, config.rpc_port)).into_boxed_str(),
-        ),
-        peers: config
-            .peers
-            .iter()
-            .map(|n| format!("http://{}:{}", n, config.rpc_port))
-            .map(|s| s.clone().leak() as &'static str)
-            .collect(),
+        self_id: format!("http://{}:{}", config.domains[config.self_domain_idx], config.rpc_ports[config.self_domain_idx]).leak() as &'static str, 
+        peers: config.domains.clone()
+        .into_iter()
+        .enumerate()
+        .filter_map(|(idx, s)| {
+            if idx == config.self_domain_idx {
+                None
+            } else {
+                Some(format!("http://{}:{}", s, config.rpc_ports[idx]).leak() as &'static str)
+            }
+        }).collect(),
         election_duration: tokio::time::Duration::from_millis(1000),
         heartbeat_duration: tokio::time::Duration::from_millis(250),
         persistent_state_path: std::path::Path::new("TODO : path to persistent_state"),
         wal_path: std::path::Path::new("TODO : path to wal"),
     };
 
+    info!("{:?}", raft_config);
+
     let (log_tx, log_rx) = mpsc::channel(15);
     let (req_tx, req_rx) = mpsc::channel(15);
-    if true {
+    if config.raft_mock_flag {
+        info!("RUN MOCK RAFT");
         raft::mock_raft::run_mock_raft(raft_config, log_tx, req_rx)
     } else {
+        info!("RUN RAFT");
         raft::run_raft(raft_config, log_tx, req_rx)
     };
 
@@ -189,7 +202,7 @@ async fn main() {
     let (writer_tx, pub_tx) = run_tasks(client_commit_idx, &config).await;
 
     // websocket server
-    let addr = SocketAddr::from(([0, 0, 0, 0], config.socket_port));
+    let addr = SocketAddr::from(([0, 0, 0, 0], config.socket_ports[config.self_domain_idx]));
     let server = TcpListener::bind(addr).await;
     let listener = server.expect("failed to bind");
 

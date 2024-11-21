@@ -19,7 +19,7 @@ export class MsgHandler {
     #sendIndexToServer = 0;
     #msgSize = 1;
     #msgLimit = 8;
-    #msgTimeOut = 1000; //ms = 1min
+    #msgTimeOut = 10000; //ms = 10sec
     #timeStamp = 0;
 
     getTimeStamp() {

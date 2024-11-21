@@ -85,6 +85,10 @@ export class Engine {
                         this.storage.setLatestIdx(0);
                         this.storage.setTimeStamp(0);
                     }
+                    
+                    this.info.socket_port = this.info.socket_ports.splice(this.info.self_domain_id, 1);
+                    this.info.self_domain = this.info.domains.splice(this.info.self_domain_id, 1); 
+                    console.log(this.info);
 
                     this.connectWS(window.location.hostname, this.info.socket_port);
                 })
@@ -128,7 +132,7 @@ export class Engine {
         let new_host;
         while (1) {
             let rand_idx = Math.floor((Math.random() * 4));
-            new_host = this.info.peers[rand_idx];
+            new_host = this.info.domains[rand_idx];
             if (new_host != this.current_host) {
                 break;
             }
