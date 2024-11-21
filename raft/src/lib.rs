@@ -22,7 +22,7 @@ use raftchat_tonic::{Command, Entry};
 use raftchat_tonic::{RequestVoteArgs, RequestVoteRes};
 use raftchat_tonic::{UserRequestArgs, UserRequestRes};
 
-use tonic::transport::{Channel, Server};
+use tonic::transport::{Channel, Endpoint, Server};
 use tonic::{Request, Response, Status};
 
 use persistent_state::PersistentState;
@@ -30,6 +30,8 @@ use state_machine::{SMWrapper, UserMessageIdMap};
 use wal::WAL;
 
 use tokio_util::task::AbortOnDropHandle;
+
+use log::info;
 
 #[derive(Debug)]
 pub struct RaftConfig {
@@ -96,6 +98,7 @@ impl MyRaftChat {
         time::sleep(self.config.election_duration).await;
         let mut guard = self.state.lock();
         // TODO : Add checking for term and role
+
         guard.persistent_state.start_election(self.config.self_id);
         // NB : this will cancel itself
         self.reset_to_candidate(&mut guard);
@@ -167,6 +170,8 @@ impl MyRaftChat {
         };
 
         if elected {
+            info!("{} is elected as leader", self.config.self_id);
+
             let mut guard = self.state.lock();
             self.reset_to_leader(&mut guard);
             drop(guard);
@@ -343,6 +348,8 @@ impl RaftChat for Arc<MyRaftChat> {
         &self,
         request: Request<RequestVoteArgs>,
     ) -> Result<Response<RequestVoteRes>, Status> {
+        info!("request_vote");
+
         let args: RequestVoteArgs = request.into_inner();
         let mut guard = self.state.lock();
         let Some(candidate_id) = self.config.get_peer(&args.candidate_id) else {
@@ -389,6 +396,10 @@ impl RaftChat for Arc<MyRaftChat> {
                     if (client_committed_idx == None && args.message_id != 1)
                         || client_committed_idx.unwrap() + 1 != args.message_id
                     {
+                        info!(
+                            "message blocked | raft's message id {:?} |  message's time stamp: {}",
+                            client_committed_idx, args.message_id
+                        );
                         return Ok(Response::new(UserRequestRes { success: false }));
                     }
 
@@ -470,6 +481,15 @@ pub fn run_raft(
         committed_length_cvar: Condvar::new(),
         propose_cvar: Condvar::new(),
     });
+
+    for addr in raft_chat.config.peers.iter() {
+        let channel: Channel = Endpoint::from_static(addr).connect_lazy();
+        raft_chat
+            .state
+            .lock()
+            .connections
+            .insert(*addr, RaftChatClient::new(channel));
+    }
 
     raft_chat.state.lock().role = Role::Follower(FollowerState {
         current_leader: None,
