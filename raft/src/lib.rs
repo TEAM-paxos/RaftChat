@@ -165,8 +165,10 @@ impl MyRaftChat {
         let elected = loop {
             // NB : This loop will get stuck if number of vote is not sufficient.
             // We have timeout for election anyway.
-            if let Some(true) = vote_rx.recv().await {
-                vote_count = vote_count + 1;
+            if let Some(b) = vote_rx.recv().await {
+                if b {
+                    vote_count = vote_count + 1;
+                }
             } else {
                 break false;
             }
