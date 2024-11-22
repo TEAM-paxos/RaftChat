@@ -338,13 +338,18 @@ impl MyRaftChat {
                 if s.match_length[peer] < guard.sm.wal().len() {
                     let client = guard.connections[peer].clone();
                     let prev_length = s.prev_length[peer];
+                    let entries_len = if prev_length < guard.sm.wal().len() {
+                        1
+                    } else {
+                        0
+                    };
                     let args = AppendEntriesArgs {
                         term: guard.persistent_state.current_term(),
                         leader_id: String::from(self.config.self_id),
                         prev_length: prev_length,
                         prev_term: guard.sm.wal().last_term_for(prev_length),
                         entries: guard.sm.wal().as_slice()
-                            [prev_length as usize..prev_length as usize + 1]
+                            [prev_length as usize..prev_length as usize + entries_len]
                             .to_vec(),
                         committed_length: guard.committed_length,
                     };
