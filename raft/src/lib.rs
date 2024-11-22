@@ -50,6 +50,14 @@ impl RaftConfig {
     fn get_peer(&self, s: &str) -> Option<&'static str> {
         self.peers.iter().find(|&&peer| peer == s).copied()
     }
+
+    fn cluster_size(&self) -> usize {
+        self.peers.len() + 1
+    }
+
+    fn quorum_size(&self) -> usize {
+        (self.cluster_size() / 2) + 1
+    }
 }
 
 pub struct LeaderState {
@@ -124,7 +132,7 @@ impl MyRaftChat {
                         entries: vec![],
                         committed_length: guard.committed_length,
                     };
-                    info!("{} send heartbeat to {}", self.config.self_id, peer);
+                    debug!("{} send heartbeat to {}", self.config.self_id, peer);
                     task::spawn(self.clone().append_entries_future(peer, client, args));
                 }
             } else {
@@ -172,7 +180,7 @@ impl MyRaftChat {
             } else {
                 break false;
             }
-            if vote_count * 2 > self.config.peers.len() + 1 {
+            if vote_count >= self.config.quorum_size() {
                 break true;
             }
         };
@@ -196,21 +204,62 @@ impl MyRaftChat {
         let term = args.term;
         let prev_length = args.prev_length;
         let entries_len = args.entries.len() as u64;
+        if entries_len > 0 {
+            info!("send non empty append entries to {}", peer);
+        }
         if let Ok(res) = client.append_entries(Request::new(args)).await {
             let res = res.into_inner();
             if res.term == term {
                 let mut guard = self.state.lock();
-                if let (true, Role::Leader(ref mut s)) = (
-                    guard.persistent_state.current_term() == term,
-                    &mut guard.role,
-                ) {
+                if let (
+                    true,
+                    RaftState {
+                        sm,
+                        role: Role::Leader(s),
+                        committed_length,
+                        ..
+                    },
+                ) = (guard.persistent_state.current_term() == term, &mut *guard)
+                {
                     if res.success {
+                        if entries_len > 0 {
+                            info!("received append entries ack from {} (succed)", peer);
+                        }
+                        // Update match_length
                         // TODO : Check this
                         let l = s.match_length.get_mut(peer).unwrap();
                         let new_l = max(*l, prev_length + entries_len);
                         *l = new_l;
                         s.prev_length.insert(peer, new_l);
+
+                        // Update committed_length
+                        let mut v: Vec<std::cmp::Reverse<u64>> = s
+                            .match_length
+                            .values()
+                            .cloned()
+                            .map(|x| std::cmp::Reverse(x))
+                            .collect();
+                        v.sort();
+                        let l: u64 = v[self.config.quorum_size() - 2].0;
+                        if *committed_length < l {
+                            *committed_length = l;
+                            sm.take_snapshot(l);
+                            self.committed_length_cvar.notify_one();
+                            let v: Vec<(u64, oneshot::Sender<bool>)> =
+                                s.commit_alarm.drain(..).collect();
+                            for (i, ch) in v {
+                                if i < l {
+                                    info!("send commit alarm for {} < {}", i, l);
+                                    let _ = ch.send(true);
+                                } else {
+                                    s.commit_alarm.push((i, ch));
+                                }
+                            }
+                        }
                     } else {
+                        if entries_len > 0 {
+                            info!("received append entries ack from {} (failed)", peer);
+                        }
                         assert!(prev_length > 0); // NB : If prev_length == 0 and res.term == term,
                                                   // then it is absurd to reject append entries rpc
                         s.prev_length.insert(peer, prev_length - 1);
@@ -318,6 +367,9 @@ impl RaftChat for Arc<MyRaftChat> {
         request: Request<AppendEntriesArgs>,
     ) -> Result<Response<AppendEntriesRes>, Status> {
         let args: AppendEntriesArgs = request.into_inner();
+        if args.entries.len() > 0 {
+            info!("non empty append entries received");
+        }
         let mut guard = self.state.lock();
         let (current_term, ok) = guard.persistent_state.update_term(args.term);
         if !ok {
@@ -340,10 +392,12 @@ impl RaftChat for Arc<MyRaftChat> {
                 success: false,
             })),
             Some(compatible_length) => {
-                guard.committed_length = max(
+                let l = max(
                     guard.committed_length,
                     min(args.committed_length, compatible_length),
                 );
+                guard.committed_length = l;
+                guard.sm.take_snapshot(l);
                 drop(guard);
                 self.committed_length_cvar.notify_one();
 
@@ -437,7 +491,7 @@ impl RaftChat for Arc<MyRaftChat> {
 
                     // 5. waiting commit
                     Box::pin(async {
-                        match rx.blocking_recv() {
+                        match rx.await {
                             Ok(true) => return Ok(Response::new(UserRequestRes { success: true })),
                             Ok(false) => {
                                 return Ok(Response::new(UserRequestRes { success: false }))
