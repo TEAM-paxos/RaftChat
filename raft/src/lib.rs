@@ -475,7 +475,7 @@ impl RaftChat for Arc<MyRaftChat> {
 
                     // 5. waiting commit
                     Box::pin(async {
-                        match rx.blocking_recv() {
+                        match rx.await {
                             Ok(true) => return Ok(Response::new(UserRequestRes { success: true })),
                             Ok(false) => {
                                 return Ok(Response::new(UserRequestRes { success: false }))
