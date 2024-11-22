@@ -14,6 +14,7 @@ export class Engine {
     userId;
     committedIndex;
     current_host;
+    current_port;
     serverNameList = [];
 
     socket;
@@ -36,7 +37,6 @@ export class Engine {
         this.portForm = utils.get(".port-inputarea");
         this.portInput = utils.get(".port-send-btn");
         this.notCommittedChat = utils.get(".nc-msger-chat");
-        this.current_host = window.location.host;
         this.msgHandler = new MsgHandler();
         this.storage = new Storage();
 
@@ -85,12 +85,12 @@ export class Engine {
                         this.storage.setLatestIdx(0);
                         this.storage.setTimeStamp(0);
                     }
-                    
-                    this.info.socket_port = this.info.socket_ports.splice(this.info.self_domain_id, 1);
-                    this.info.self_domain = this.info.domains.splice(this.info.self_domain_id, 1); 
-                    console.log(this.info);
 
-                    this.connectWS(window.location.hostname, this.info.socket_port);
+
+                    this.current_port = this.info.socket_ports[this.info.self_domain_idx];
+                    this.current_host = this.info.domains[this.info.self_domain_idx];
+
+                    this.connectWS(window.location.hostname, this.current_port);
                 })
         })
 
@@ -130,16 +130,22 @@ export class Engine {
 
     retry_connection() {
         let new_host;
+        let new_port;
         while (1) {
-            let rand_idx = Math.floor((Math.random() * 4));
+            let rand_idx = Math.floor((Math.random() * this.info.domains.length));
             new_host = this.info.domains[rand_idx];
-            if (new_host != this.current_host) {
+            new_port = this.info.socket_ports[rand_idx];
+
+            console.log(new_host + " " + new_port + ":" + this.current_host);
+
+            if (new_host != this.current_host || new_port != this.current_port) {
                 break;
             }
         }
-        alert("repeat connect the" + new_host + " server")
-        this.connectWS(new_host, this.info.socket_port);
+        // alert("repeat connect the" + new_host + " server")
+        this.connectWS(new_host, new_port);
         this.current_host = new_host;
+        this.current_port = new_port;
     }
 
     retransmission() {
