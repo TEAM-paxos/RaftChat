@@ -158,7 +158,7 @@ async fn run_tasks(
                 }
             })
             .collect(),
-        election_duration: (750, 1500), // raft paper: 150ms ~ 300ms
+        election_duration: (3000, 4000), // raft paper: 150ms ~ 300ms
         heartbeat_duration: tokio::time::Duration::from_millis(250),
         persistent_state_path: std::path::Path::new("TODO : path to persistent_state"),
         wal_path: std::path::Path::new("TODO : path to wal"),
