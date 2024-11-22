@@ -50,6 +50,14 @@ impl RaftConfig {
     fn get_peer(&self, s: &str) -> Option<&'static str> {
         self.peers.iter().find(|&&peer| peer == s).copied()
     }
+
+    fn cluster_size(&self) -> usize {
+        self.peers.len() + 1
+    }
+
+    fn quorum_size(&self) -> usize {
+        (self.cluster_size() / 2) + 1
+    }
 }
 
 pub struct LeaderState {
@@ -172,7 +180,7 @@ impl MyRaftChat {
             } else {
                 break false;
             }
-            if vote_count * 2 > self.config.peers.len() + 1 {
+            if vote_count >= self.config.quorum_size() {
                 break true;
             }
         };
@@ -200,16 +208,46 @@ impl MyRaftChat {
             let res = res.into_inner();
             if res.term == term {
                 let mut guard = self.state.lock();
-                if let (true, Role::Leader(ref mut s)) = (
-                    guard.persistent_state.current_term() == term,
-                    &mut guard.role,
-                ) {
+                if let (
+                    true,
+                    RaftState {
+                        sm,
+                        role: Role::Leader(s),
+                        committed_length,
+                        ..
+                    },
+                ) = (guard.persistent_state.current_term() == term, &mut *guard)
+                {
                     if res.success {
+                        // Update match_length
                         // TODO : Check this
                         let l = s.match_length.get_mut(peer).unwrap();
                         let new_l = max(*l, prev_length + entries_len);
                         *l = new_l;
                         s.prev_length.insert(peer, new_l);
+
+                        // Update committed_length
+                        let mut v: Vec<std::cmp::Reverse<u64>> = s
+                            .match_length
+                            .values()
+                            .cloned()
+                            .map(|x| std::cmp::Reverse(x))
+                            .collect();
+                        v.sort();
+                        let l: u64 = v[self.config.quorum_size() - 2].0;
+                        if *committed_length < l {
+                            *committed_length = l;
+                            sm.take_snapshot(l);
+                            let v: Vec<(u64, oneshot::Sender<bool>)> =
+                                s.commit_alarm.drain(..).collect();
+                            for (i, ch) in v {
+                                if i < l {
+                                    let _ = ch.send(true);
+                                } else {
+                                    s.commit_alarm.push((i, ch));
+                                }
+                            }
+                        }
                     } else {
                         assert!(prev_length > 0); // NB : If prev_length == 0 and res.term == term,
                                                   // then it is absurd to reject append entries rpc
