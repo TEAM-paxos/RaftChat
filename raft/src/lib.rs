@@ -238,6 +238,7 @@ impl MyRaftChat {
                         if *committed_length < l {
                             *committed_length = l;
                             sm.take_snapshot(l);
+                            self.committed_length_cvar.notify_one();
                             let v: Vec<(u64, oneshot::Sender<bool>)> =
                                 s.commit_alarm.drain(..).collect();
                             for (i, ch) in v {
@@ -378,10 +379,12 @@ impl RaftChat for Arc<MyRaftChat> {
                 success: false,
             })),
             Some(compatible_length) => {
-                guard.committed_length = max(
+                let l = max(
                     guard.committed_length,
                     min(args.committed_length, compatible_length),
                 );
+                guard.committed_length = l;
+                guard.sm.take_snapshot(l);
                 drop(guard);
                 self.committed_length_cvar.notify_one();
 
