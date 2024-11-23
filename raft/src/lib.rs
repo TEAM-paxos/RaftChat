@@ -1,6 +1,7 @@
 pub mod mock_raft;
 pub mod persistent_state;
 pub mod raftchat_tonic;
+pub mod signal;
 pub mod state_machine;
 pub mod wal;
 
