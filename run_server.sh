@@ -1,14 +1,17 @@
 #!/usr/bin/env bash
 
-hostname=$(hostname)
+#shut down case
+if [ $1 -ne 1 ]; then 
+    docker compose down
 
-sed -i "s/^SELF_DOMAIN_IDX=0$/SELF_DOMAIN_IDX=$DOMAIN_IDX/" ./config/config.env
-sed -i "s/{address}/$SERVER_ADDRESS/g" promtail-config.yml
-sed -i "s/{hostname}/$hostname/g" promtail-config.yml
+    docker rmi $(docker images | grep raftchat/raftchat |  awk '{print $3}')
+else  #set up server
+    hostname=$(hostname)
 
-docker compose down
+    sed -i "s/^SELF_DOMAIN_IDX=0$/SELF_DOMAIN_IDX=$DOMAIN_IDX/" ./config/config.env
+    sed -i "s/{address}/$SERVER_ADDRESS/g" promtail-config.yml
+    sed -i "s/{hostname}/$hostname/g" promtail-config.yml
 
-#docker stop $(docker ps -a | grep raftchat/raftchat | awk '{print $1}')
-#docker rm $(docker ps -a | grep raftchat/raftchat | awk '{print $1}')
-docker rmi $(docker images | grep raftchat/raftchat |  awk '{print $3}')
-docker compose up -d
+    docker compose up -d
+fi
+
