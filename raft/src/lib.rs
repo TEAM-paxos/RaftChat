@@ -422,10 +422,7 @@ impl RaftChat for Arc<MyRaftChat> {
 
         let args: RequestVoteArgs = request.into_inner();
         let mut guard = self.state.lock();
-        let Some(candidate_id) = self.config.get_peer(&args.candidate_id) else {
-            unimplemented!();
-        };
-        let (current_term, ok) = guard.persistent_state.try_vote(args.term, candidate_id);
+        let (current_term, ok) = guard.persistent_state.update_term(args.term);
         if !ok {
             return Ok(Response::new(RequestVoteRes {
                 term: current_term,
@@ -433,6 +430,20 @@ impl RaftChat for Arc<MyRaftChat> {
             }));
         }
         self.reset_to_follower(&mut guard, None);
+        let Some(candidate_id) = self.config.get_peer(&args.candidate_id) else {
+            unimplemented!();
+        };
+        let ok = guard
+            .sm
+            .wal()
+            .fresher_or_eq(args.prev_term, args.prev_length)
+            && guard.persistent_state.try_vote(candidate_id);
+        if !ok {
+            return Ok(Response::new(RequestVoteRes {
+                term: current_term,
+                vote_granted: false,
+            }));
+        }
         Ok(Response::new(RequestVoteRes {
             term: current_term,
             vote_granted: true,

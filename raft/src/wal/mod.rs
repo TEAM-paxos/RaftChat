@@ -38,6 +38,12 @@ impl WAL {
         }
     }
 
+    pub fn fresher_or_eq(&self, term: u64, len: u64) -> bool {
+        let t = self.last_term();
+        let l = self.len();
+        (t < term) || (t == term && l <= len)
+    }
+
     pub fn as_slice(&self) -> &[Entry] {
         &self.cache
     }
