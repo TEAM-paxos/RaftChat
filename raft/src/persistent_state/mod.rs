@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 
 pub struct PersistentStateElement {
     current_term: u64,
-    voted_for: Option<&'static str>,
+    voted_for: Option<String>,
 }
 
 pub struct PersistentState {
@@ -22,11 +22,21 @@ pub struct PersistentState {
 
 impl PersistentState {
     pub fn new(path: &Path, backup_path: &Path) -> PersistentState {
-        PersistentState {
-            element: PersistentStateElement {
+        let element = if path.exists() {
+            let mut file = fs::File::open(path).expect("Failed to open persistent state file");
+            let mut contents = Vec::new();
+            file.read_to_end(&mut contents)
+                .expect("Failed to read persistent state file");
+            serde_json::from_slice(&contents).expect("Failed to deserialize persistent state")
+        } else {
+            PersistentStateElement {
                 current_term: 0,
                 voted_for: None,
-            },
+            }
+        };
+
+        PersistentState {
+            element,
             path: path.to_path_buf(),
             backup_path: backup_path.to_path_buf(),
         }
@@ -36,8 +46,8 @@ impl PersistentState {
         self.element.current_term
     }
 
-    pub fn voted_for(&self) -> Option<&'static str> {
-        self.element.voted_for
+    pub fn voted_for(&self) -> Option<&str> {
+        self.element.voted_for.as_deref()
     }
 
     fn save(&self, path: &Path) {
@@ -48,9 +58,9 @@ impl PersistentState {
     }
 
     // Dummy implementation
-    pub fn start_election(&mut self, self_id: &'static str) {
+    pub fn start_election(&mut self, self_id: &str) {
         self.element.current_term = self.element.current_term + 1;
-        self.element.voted_for = Some(self_id);
+        self.element.voted_for = Some(self_id.to_string());
     }
 
     // Dummy implementation.
@@ -74,7 +84,7 @@ impl PersistentState {
     pub fn try_vote(&mut self, candidate: &'static str) -> bool {
         match &self.element.voted_for {
             None => {
-                self.element.voted_for = Some(candidate);
+                self.element.voted_for = Some(candidate.to_string());
                 true
             }
             Some(recipient) => *recipient == candidate,
