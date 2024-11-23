@@ -1,8 +1,13 @@
 // persistent state
 
 use atomic_write_file::AtomicWriteFile;
+use serde::{Deserialize, Serialize};
+use serde_json;
+use std::fs;
+use std::io::{Read, Write};
 use std::path::Path;
 
+#[derive(Serialize, Deserialize)]
 pub struct PersistentState {
     // These data must be stored on persistent storage
     current_term: u64,
@@ -24,6 +29,18 @@ impl PersistentState {
 
     pub fn voted_for(&self) -> Option<&'static str> {
         self.voted_for
+    }
+
+    fn save(&self, path: &Path) {
+        let serialized = serde_json::to_vec(self)
+                                              .expect("Failed to serialize persistent state");
+        let mut file = AtomicWriteFile::options()
+                                                        .open(path)
+                                                        .expect("Failed to open file");
+        file.write_all(&serialized)
+            .expect("Failed to write to file");
+        file.commit()
+            .expect("Failed to commit file");
     }
 
     // Dummy implementation
