@@ -173,7 +173,10 @@ async fn run_tasks(
         raft::mock_raft::run_mock_raft(raft_config, log_tx, req_rx)
     } else {
         info!("RUN RAFT");
-        raft::run_raft(raft_config, log_tx, req_rx)
+        let (tx, rx) = raft::signal::channel();
+        tokio::task::spawn(raft::run_raft(raft_config, log_tx, req_rx, rx));
+        std::mem::forget(tx);
+        // TODO : take care of the signal tx and the raft join handle
     };
 
     // writer task

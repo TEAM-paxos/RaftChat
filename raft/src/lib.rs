@@ -9,6 +9,7 @@ use parking_lot::{Condvar, Mutex, MutexGuard};
 use rand::Rng;
 use std::cmp::{max, min};
 use std::collections::HashMap;
+use std::future::Future;
 use std::net::SocketAddr;
 use std::path::Path;
 use std::sync::Arc;
@@ -95,6 +96,7 @@ pub struct RaftState {
     committed_length: u64,             // committed index in paper
     role: Role,
     connections: HashMap<&'static str, RaftChatClient<Channel>>,
+    shutdown: bool,
 }
 
 pub struct MyRaftChat {
@@ -315,7 +317,7 @@ impl MyRaftChat {
     pub fn publisher_thread(self: Arc<Self>, log_tx: mpsc::Sender<Entry>) {
         let mut sent_length: usize = 0;
         let mut guard = self.state.lock();
-        loop {
+        while !guard.shutdown {
             let committed_length = guard.committed_length as usize;
             if sent_length < committed_length {
                 let entries = guard.sm.wal().as_slice()[sent_length..committed_length].to_vec();
@@ -334,7 +336,7 @@ impl MyRaftChat {
     pub fn peer_thread(self: Arc<Self>, peer: &'static str) {
         let mut guard: parking_lot::lock_api::MutexGuard<'_, parking_lot::RawMutex, RaftState> =
             self.state.lock();
-        'LOOP: loop {
+        'LOOP: while !guard.shutdown {
             if let Role::Leader(s) = &guard.role {
                 if s.match_length[peer] < guard.sm.wal().len() {
                     let client = guard.connections[peer].clone();
@@ -460,9 +462,7 @@ impl RaftChat for Arc<MyRaftChat> {
         request: Request<UserRequestArgs>,
     ) -> Result<Response<UserRequestRes>, Status> {
         let mut client;
-        let future: Pin<
-            Box<dyn Send + std::future::Future<Output = Result<Response<UserRequestRes>, Status>>>,
-        > = {
+        let future: Pin<Box<dyn Send + Future<Output = Result<Response<UserRequestRes>, Status>>>> = {
             let mut guard = self.state.lock();
 
             match &mut *guard {
@@ -551,10 +551,11 @@ impl RaftChat for Arc<MyRaftChat> {
     }
 }
 
-pub fn run_raft(
+pub async fn run_raft(
     config: RaftConfig,
     log_tx: mpsc::Sender<Entry>,
     req_rx: mpsc::Receiver<UserRequestArgs>,
+    signal: impl Future<Output = ()>,
 ) {
     let serve_addr = config.serve_addr;
     let persistent_state_path = config.persistent_state_path;
@@ -570,6 +571,7 @@ pub fn run_raft(
                 timeout_handle: AbortOnDropHandle::new(task::spawn(async {})),
             }),
             connections: HashMap::new(),
+            shutdown: false,
         }),
         committed_length_cvar: Condvar::new(),
         propose_cvar: Condvar::new(),
@@ -600,8 +602,18 @@ pub fn run_raft(
         task::spawn_blocking(move || raft_chat_cloned.peer_thread(peer));
     }
 
-    let rpc_future = Server::builder()
-        .add_service(RaftChatServer::new(raft_chat))
-        .serve(serve_addr);
-    task::spawn(rpc_future);
+    let (tx, rx) = signal::channel();
+    task::spawn(
+        Server::builder()
+            .add_service(RaftChatServer::new(raft_chat.clone()))
+            .serve_with_shutdown(serve_addr, rx),
+    );
+
+    signal.await;
+    raft_chat.state.lock().shutdown = true;
+    raft_chat.committed_length_cvar.notify_all();
+    raft_chat.propose_cvar.notify_all();
+    tx.signal();
+    // TODO : join
+    info!("server shutdown!");
 }
