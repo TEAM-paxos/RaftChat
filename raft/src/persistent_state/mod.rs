@@ -1,20 +1,50 @@
 // persistent state
 
+use crate::RaftConfig;
 use atomic_write_file::AtomicWriteFile;
-use std::path::Path;
+use serde::{Deserialize, Serialize};
+use serde_json;
+use std::fs;
+use std::io::{Read, Write};
+use std::path::{Path, PathBuf};
+
+#[derive(Serialize, Deserialize)]
+
+pub struct PersistentStateElement {
+    current_term: u64,
+    voted_for: Option<String>,
+}
 
 pub struct PersistentState {
-    // These data must be stored on persistent storage
     current_term: u64,
     voted_for: Option<&'static str>,
+    path: PathBuf,
+    backup_path: PathBuf,
 }
 
 impl PersistentState {
-    pub fn new(path: &Path) -> PersistentState {
-        // TODO : initialize with data from path
+    pub fn new(config: &RaftConfig, path: &Path, backup_path: &Path) -> PersistentState {
+        let element: PersistentStateElement = if path.exists() {
+            let mut file = fs::File::open(path).expect("Failed to open persistent state file");
+            let mut contents = String::new();
+            file.read_to_string(&mut contents)
+                .expect("Failed to read persistent state file");
+            serde_json::from_str(&contents).expect("Failed to deserialize persistent state")
+        } else {
+            PersistentStateElement {
+                current_term: 0,
+                voted_for: None,
+            }
+        };
+
+        let current_term = element.current_term;
+        let voted_for = config.get_peer(element.voted_for.as_deref().unwrap_or(""));
+
         PersistentState {
-            current_term: 0,
-            voted_for: None,
+            current_term,
+            voted_for,
+            path: path.to_path_buf(),
+            backup_path: backup_path.to_path_buf(),
         }
     }
 

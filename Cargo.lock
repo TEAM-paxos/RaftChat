@@ -1125,6 +1125,8 @@ dependencies = [
  "parking_lot",
  "prost",
  "rand",
+ "serde",
+ "serde_json",
  "tokio",
  "tokio-util",
  "tonic",
