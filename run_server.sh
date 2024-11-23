@@ -4,7 +4,7 @@
 if [ $1 -ne 1 ]; then 
     docker compose down
 
-    docker rmi $(docker images | grep raftchat/raftchat |  awk '{print $3}')
+    docker rmi -f $(docker images | grep raftchat/raftchat |  awk '{print $3}')
 else  #set up server
     hostname=$(hostname)
 
