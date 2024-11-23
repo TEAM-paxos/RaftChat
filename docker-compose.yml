@@ -26,7 +26,7 @@ services:
       - toxiproxy
     entrypoint: >
       sh -c "/go/bin/toxiproxy-cli -h toxiproxy:8474 create socket --listen 0.0.0.0:9001 --upstream server:9001; 
-             /go/bin/toxiproxy-cli -h toxiproxy:8474 create rpc --listen 0.0.0.0:3010 --upstream sever:3010;"
+             /go/bin/toxiproxy-cli -h toxiproxy:8474 create rpc --listen 0.0.0.0:3010 --upstream server:3010;"
 
   node_exporter:
     image: quay.io/prometheus/node-exporter:latest
