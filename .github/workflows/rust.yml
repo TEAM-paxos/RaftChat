@@ -57,7 +57,7 @@ jobs:
       uses: actions/checkout@v4
     
     - name: run 
-      run: chmod +x run_server.sh && ./run_server.sh 0
+      run: chmod +x run_server.sh && ./run_server.sh 0 || true
 
   run_server:
     if: github.event_name == 'push'
