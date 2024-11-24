@@ -46,7 +46,7 @@ async fn read_task(
     info!("read_task started");
 
     while let Some(msg) = read_stream.next().await {
-        let msg = msg.unwrap();
+        let msg = msg.unwrap_or(Message::Close(None));
         match msg {
             Message::Text(text) => {
                 let client_msg: ClientMsg = serde_json::from_str(&text).unwrap_or_else(|err| {

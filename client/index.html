@@ -8,61 +8,55 @@
   Available at: https://codepen.io/sajadhsm/pen/odaBdd
 -->
 
-
 <!DOCTYPE html>
 <html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>RaftChat</title>
+    <link rel="stylesheet" href="./static/ui.css" />
+    <script type="module" src="./static/chatSDK.js"></script>
+  </head>
 
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Document</title>
-  <link rel="stylesheet" href="/static/ui.css" />
-  <script type="module" src="/static/chatSDK.js"></script>
+  <body>
+    <section class="msger">
+      <header class="msger-header">
+        <div class="msger-header-title">
+          <i class="fas fa-comment-alt"></i> RaftChat
+        </div>
+        <div class="msger-header-options">
+          <span><i class="fas fa-cog"></i></span>
+        </div>
+      </header>
 
-</head>
+      <main class="msger-chat"></main>
 
-<body>
-  <section class="msger">
-    <header class="msger-header">
-      <div class="msger-header-title">
-        <i class="fas fa-comment-alt"></i> RaftChat
-      </div>
-      <div class="msger-header-options">
-        <span><i class="fas fa-cog"></i></span>
-      </div>
-    </header>
+      <form class="port-inputarea">
+        <div class="server-info"></div>
 
-    <main class="msger-chat">
+        <button type="submit" class="connect-btn">CONNECT</button>
+      </form>
+      <form class="msger-inputarea">
+        <input
+          type="text"
+          class="msger-input"
+          placeholder="Enter your message..."
+        />
+        <button type="submit" class="msger-send-btn">SEND</button>
+      </form>
+    </section>
 
+    <section class="not-committed">
+      <header class="msger-header">
+        <div class="msger-header-title">
+          <i class="fas fa-comment-alt"></i> Not committed
+        </div>
+        <div class="msger-header-options">
+          <span><i class="fas fa-cog"></i></span>
+        </div>
+      </header>
 
-    </main>
-
-    <form class="port-inputarea">
-      <button type="submit" class="port-send-btn">connect</button>
-    </form>
-    <form class="msger-inputarea">
-
-
-      <input type="text" class="msger-input" placeholder="Enter your message...">
-      <button type="submit" class="msger-send-btn">Send</button>
-    </form>
-  </section>
-
-  <section class="not-committed">
-    <header class="msger-header">
-      <div class="msger-header-title">
-        <i class="fas fa-comment-alt"></i> Not committed
-      </div>
-      <div class="msger-header-options">
-        <span><i class="fas fa-cog"></i></span>
-      </div>
-    </header>
-
-    <main class="nc-msger-chat" id="nc-chat-area">
-
-    </main>
-
-  </section>
-</body>
-
+      <main class="nc-msger-chat" id="nc-chat-area"></main>
+    </section>
+  </body>
 </html>
