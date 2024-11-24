@@ -44,6 +44,7 @@ export class Engine {
     this.portForm = utils.get(".port-inputarea");
     this.connectBtn = utils.get(".connect-btn");
     this.notCommittedChat = utils.get(".nc-msger-chat");
+    this.serverInfoDiv = utils.get(".server-info");
     this.msgHandler = new MsgHandler();
     this.storage = new Storage();
 
@@ -126,6 +127,7 @@ export class Engine {
     }
 
     console.log("connect to " + host + " : " + port);
+
     this.connectBtn.disabled = true;
 
     this.interval_handler;
@@ -134,6 +136,11 @@ export class Engine {
       console.log("WebSocket is open");
       this.retry_flag = 0;
       this.connectBtn.style.backgroundColor = "rgb(118, 255, 167)";
+
+      //update server info ui
+      this.serverInfoDiv.style.color = "rgb(0, 196, 65)";
+      this.serverInfoDiv.innerHTML = "DEST > " + host + ":" + port;
+
       this.msgerBtn.disabled = false;
       this.interval_handler = setInterval(this.retransmission.bind(this), 5000);
     };
@@ -148,6 +155,7 @@ export class Engine {
       // repeat connect the other server
       console.log("Error has occured:", error);
       this.connectBtn.style.backgroundColor = "red";
+      this.serverInfoDiv.style.color = "red";
       this.socket.close();
     };
 
@@ -155,6 +163,7 @@ export class Engine {
       this.msgerBtn.disabled = true;
       console.log("Connection is closed", error);
       this.connectBtn.style.backgroundColor = "red";
+      this.serverInfoDiv.style.color = "red";
       clearInterval(this.interval_handler);
       setTimeout(this.retry_connection.bind(this), 1000);
     };

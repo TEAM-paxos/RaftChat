@@ -188,6 +188,10 @@ body {
   background: #ddd;
 }
 
+.server-info {
+  color: rgb(0, 196, 65);
+}
+
 .msger-send-btn,
 .connect-btn {
   margin-left: 10px;

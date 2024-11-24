@@ -13,9 +13,9 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Document</title>
-    <link rel="stylesheet" href="/static/ui.css" />
-    <script type="module" src="/static/chatSDK.js"></script>
+    <title>RaftChat</title>
+    <link rel="stylesheet" href="./static/ui.css" />
+    <script type="module" src="./static/chatSDK.js"></script>
   </head>
 
   <body>
@@ -32,7 +32,9 @@
       <main class="msger-chat"></main>
 
       <form class="port-inputarea">
-        <button type="submit" class="connect-btn">connect</button>
+        <div class="server-info"></div>
+
+        <button type="submit" class="connect-btn">CONNECT</button>
       </form>
       <form class="msger-inputarea">
         <input
@@ -40,7 +42,7 @@
           class="msger-input"
           placeholder="Enter your message..."
         />
-        <button type="submit" class="msger-send-btn">Send</button>
+        <button type="submit" class="msger-send-btn">SEND</button>
       </form>
     </section>
 
