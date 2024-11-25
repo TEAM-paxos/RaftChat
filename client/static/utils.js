@@ -10,6 +10,14 @@
  */
 
 // Utils
+
+// Robohash contains robots created by Zikri Kader (set1), Hrvoje Novakovic (set2), and Julian Peter Arias (set3).
+// Cats (set4) were created by David Revoy and avataaars (set5) were created by Pablo Stanley.
+//Images are generated using the https://robohash.org service (CC-BY license).
+export function genImage(hash) {
+  return "https://robohash.org/" + hash + "/?set=set4";
+}
+
 export function get(selector, root = document) {
   return root.querySelector(selector);
 }
@@ -37,7 +45,7 @@ export function random(min, max) {
 export function insertLineBreaks(text) {
   console.log(text);
   let maxLength = 15;
-  let result = '';
+  let result = "";
   let currentLength = 0;
 
   for (let i = 0; i < text.length; i++) {
@@ -45,7 +53,7 @@ export function insertLineBreaks(text) {
     currentLength++;
 
     if (currentLength >= maxLength) {
-      result += '\n';
+      result += "\n";
       currentLength = 0; // Reset the line length
     }
   }
@@ -53,10 +61,10 @@ export function insertLineBreaks(text) {
   return result;
 }
 
-
 export function getRandomString(length) {
-  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  let result = '';
+  const characters =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  let result = "";
   for (let i = 0; i < length; i++) {
     const randomIndex = Math.floor(Math.random() * characters.length);
     result += characters[randomIndex];
