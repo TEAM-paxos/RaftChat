@@ -61,7 +61,7 @@ export class Engine {
           this.info = data;
 
           // load from storage
-          if (this.info.version == this.storage.getServerVersion()) {
+          if (this.info.refresh_token == this.storage.getRefreshToken()) {
             try {
               this.committedIndex = parseInt(this.storage.getLatestIdx());
               this.id = this.storage.getId();
@@ -77,7 +77,7 @@ export class Engine {
                 if (msg.id == this.id) {
                   this.appendCommittedMessage(
                     msg.user_id,
-                    this.USER_IMG,
+                    utils.genImage(msg.user_id),
                     "right",
                     msg.content,
                     msg.time,
@@ -86,7 +86,7 @@ export class Engine {
                 } else {
                   this.appendCommittedMessage(
                     msg.user_id,
-                    this.OTHER_IMG,
+                    utils.genImage(msg.user_id),
                     "left",
                     msg.content,
                     msg.time,
@@ -101,6 +101,7 @@ export class Engine {
             this.storage.clear();
             this.storage.setIdUid(this.id, this.userId);
             this.storage.setServerVersion(this.info.version);
+            this.storage.setRefreshToken(this.info.refresh_token);
             this.storage.setLatestIdx(0);
             this.storage.setTimeStamp(0);
           }
@@ -247,7 +248,7 @@ export class Engine {
     // 1. Update html
     this.appendNotCommittedMessage(
       this.userId,
-      this.USER_IMG,
+      utils.genImage(this.userId),
       "right",
       msgText,
       timestamp
@@ -305,7 +306,7 @@ export class Engine {
 
         this.appendCommittedMessage(
           msg.user_id,
-          this.USER_IMG,
+          utils.genImage(msg.user_id),
           "right",
           msg.content,
           msg.time,
@@ -315,7 +316,7 @@ export class Engine {
       } else {
         this.appendCommittedMessage(
           msg.user_id,
-          this.OTHER_IMG,
+          utils.genImage(msg.user_id),
           "left",
           msg.content,
           msg.time,
@@ -375,7 +376,7 @@ export class Engine {
     )}</div>
               </div>
       
-              <div class="msg-text">${utils.insertLineBreaks(text)}</div>
+              <div class="msg-text">${text}</div>
             </div>
           </div>
         `;

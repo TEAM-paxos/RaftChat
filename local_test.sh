@@ -24,11 +24,12 @@ if [ ! -f "$log_file" ]; then
   exit 1
 fi
 
-RANDOM_VERSION="0.$((RANDOM % 10)).$((RANDOM % 100))"
+RANDOM_TOKEN="0.$((RANDOM % 10)).$((RANDOM % 100))"
 
 
 sed "s/^SELF_DOMAIN_IDX=0$/SELF_DOMAIN_IDX=$1/" $config_file > test$1.env
-sed -i "s/^VERSION=.*/VERSION=\"$RANDOM_VERSION\"/" test$1.env
+sed -i "s/^VERSION=.*/VERSION=\"0.0.0\"/" test$1.env
+sed -i "s/^REFRESH_TOKEN=\"random_value\"/REFRESH_TOKEN=\"$RANDOM_TOKEN\"/" test$1.env 
 
 ./server -c test$1.env -l $log_file
 

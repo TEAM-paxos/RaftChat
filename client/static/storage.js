@@ -6,55 +6,62 @@
 */
 
 export class Storage {
+  setServerVersion(version) {
+    localStorage.setItem("serverVersion", version);
+  }
 
-    setServerVersion(version) {
-        localStorage.setItem('serverVersion', version);
-    }
+  getServerVersion() {
+    return localStorage.getItem("serverVersion");
+  }
 
-    getServerVersion() {
-        return localStorage.getItem('serverVersion');
-    }
+  setRefreshToken(token) {
+    localStorage.setItem("refreshToken", token);
+  }
 
-    setTimeStamp(timeStamp) {
-        return localStorage.setItem('timeStamp', timeStamp);
-    }
+  getRefreshToken() {
+    return localStorage.getItem("refreshToken");
+  }
 
-    getTimeStamp(timeStamp) {
-        return localStorage.getItem('timeStamp', timeStamp);
-    }
+  setTimeStamp(timeStamp) {
+    return localStorage.setItem("timeStamp", timeStamp);
+  }
 
-    setIdUid(id, uid) {
-        localStorage.setItem('id', id);
-        localStorage.setItem('uid', uid);
-    }
+  getTimeStamp(timeStamp) {
+    return localStorage.getItem("timeStamp", timeStamp);
+  }
 
-    getUid() {
-        return localStorage.getItem('uid');
-    }
+  setIdUid(id, uid) {
+    localStorage.setItem("id", id);
+    localStorage.setItem("uid", uid);
+  }
 
-    getId() {
-        return localStorage.getItem('id');
-    }
+  getUid() {
+    return localStorage.getItem("uid");
+  }
 
-    setLatestIdx(idx) {
-        localStorage.setItem('latestIdx', idx);
-    }
+  getId() {
+    return localStorage.getItem("id");
+  }
 
-    getLatestIdx() {
-        return localStorage.getItem('latestIdx');
-    }
+  setLatestIdx(idx) {
+    localStorage.setItem("latestIdx", idx);
+  }
 
-    // idx, msg : json
-    saveMessage(idx, msg) {
-        localStorage.setItem(idx, JSON.stringify(msg));
-    }
+  getLatestIdx() {
+    return localStorage.getItem("latestIdx");
+  }
 
-    // idx -> json
-    getMessage(idx) {
-        return JSON.parse(localStorage.getItem(idx));
-    }
+  // idx, msg : json
+  saveMessage(idx, msg) {
+    localStorage.setItem(idx, JSON.stringify(msg));
+  }
 
-    clear() {
-        localStorage.clear();
-    }
+  // idx -> json
+  getMessage(idx) {
+    return JSON.parse(localStorage.getItem(idx));
+  }
+
+  clear() {
+    localStorage.clear();
+  }
 }
