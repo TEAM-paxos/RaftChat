@@ -61,7 +61,7 @@ export class Engine {
           this.info = data;
 
           // load from storage
-          if (this.info.version == this.storage.getServerVersion()) {
+          if (this.info.refresh_token == this.storage.getRefreshToken()) {
             try {
               this.committedIndex = parseInt(this.storage.getLatestIdx());
               this.id = this.storage.getId();
@@ -101,6 +101,7 @@ export class Engine {
             this.storage.clear();
             this.storage.setIdUid(this.id, this.userId);
             this.storage.setServerVersion(this.info.version);
+            this.storage.setRefreshToken(this.info.refresh_token);
             this.storage.setLatestIdx(0);
             this.storage.setTimeStamp(0);
           }

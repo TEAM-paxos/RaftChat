@@ -28,6 +28,7 @@ struct Config {
     version: String,
     self_domain_idx: usize,
     raft_mock_flag: bool,
+    refresh_token: String,
 }
 
 #[derive(Parser)]
@@ -96,6 +97,8 @@ async fn setup() -> Config {
 
     let version: String = env::var("VERSION").unwrap();
 
+    let refresh_token: String = env::var("REFRESH_TOKEN").unwrap();
+
     return Config {
         raft_mock_flag: cli.raft_mock_flag,
         domains,
@@ -103,6 +106,7 @@ async fn setup() -> Config {
         socket_ports,
         rpc_ports,
         version,
+        refresh_token,
         self_domain_idx,
     };
 }
