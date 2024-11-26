@@ -48,7 +48,11 @@ pub struct RaftConfig {
 
 impl RaftConfig {
     fn get_peer(&self, s: &str) -> Option<&'static str> {
-        self.peers.iter().find(|&&peer| peer == s).copied()
+        if s == self.self_id {
+            Some(self.self_id)
+        } else {
+            self.peers.iter().find(|&&peer| peer == s).copied()
+        }
     }
 
     fn cluster_size(&self) -> usize {
