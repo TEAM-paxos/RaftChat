@@ -215,3 +215,9 @@ body {
 .connect-btn {
   margin-left: auto;
 }
+
+@media (max-width: 768px) {
+  .not-committed {
+    display: none;
+  }
+}
