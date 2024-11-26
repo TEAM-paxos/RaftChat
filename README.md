@@ -10,20 +10,14 @@ Chatting system using [raft protocol](https://raft.github.io/)
 https://hackmd.io/@jFaa8ow5QGS_siogO7YAkg/rk66Hkc-Jl
 
 ## UI
-![alt text](images/image.png)
+![image](https://github.com/user-attachments/assets/b40ebe99-42a3-4a54-b1ca-59905502ea65)
+
 
 ## Architecture
 
 ![alt text](images/image-2.png)
 ![alt text](images/image-1.png)
 
-## License of dependencies
-
-https://crates.io/crates/cargo-license
-
-```rust 
-cargo license
-```
 
 ## Local server test
 
@@ -70,6 +64,13 @@ REFRESH_TOKEN="random_value"                     // If the client's token is dif
                                                  // the client deletes the local repository
 ```
 
+## License of dependencies
+
+https://crates.io/crates/cargo-license
+
+```rust 
+cargo license
+```
 
 ## Git action local test
 
