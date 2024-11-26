@@ -37,9 +37,12 @@ impl PersistentState {
             }
         };
 
+        let current_term = element.current_term;
+        let voted_for = config.get_peer(element.voted_for.as_deref().unwrap_or(""));
+
         PersistentState {
-            current_term: element.current_term,
-            voted_for: element.voted_for.as_deref(),
+            current_term,
+            voted_for,
             path: path.to_path_buf(),
             backup_path: backup_path.to_path_buf(),
         }
