@@ -5,6 +5,14 @@
 # RaftChat
 Chatting system using [raft protocol](https://raft.github.io/)
 
+We implmented Leader Election + Log Replication +	Persistence(soon), not Membership Changes, Log Compaction.
+
+The write operation guarantees [linearizability](https://en.wikipedia.org/wiki/Linearizability), and the read operation guarantees [monotonic read](https://en.wikipedia.org/wiki/Consistency_model#:~:text=Monotonic%20read%20consistency).
+The level of consistency was lowered according to the operation of the chatting to distribute the load of the read operation.
+
+Our system runs on five physical servers and confuses the system using [Toxiproxy](https://github.com/Shopify/toxiproxy) for testing.
+You can run the system not just from five, but from three, seven, etc... ([quorum](https://en.wikipedia.org/wiki/Quorum_(distributed_computing)))
+
 ## Note
 
 https://hackmd.io/@jFaa8ow5QGS_siogO7YAkg/rk66Hkc-Jl
