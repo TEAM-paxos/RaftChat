@@ -564,6 +564,7 @@ pub fn run_raft(
         config: config,
         state: Mutex::new(RaftState {
             persistent_state: PersistentState::new(
+                &config,
                 persistent_state_path,
                 persistent_state_backup_path,
             ),
