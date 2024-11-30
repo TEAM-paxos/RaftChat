@@ -7,6 +7,7 @@ use raft::raftchat_tonic::{Command, Entry, UserRequestArgs};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::u64;
+use tokio::io::unix::AsyncFd;
 use tokio::net::TcpStream;
 use tokio::sync::mpsc::Receiver;
 use tokio::time::{self, Duration};
@@ -59,6 +60,7 @@ impl Publisher {
         &self,
         mut commit_rx: Receiver<Entry>,
         mut pub_rx: Receiver<(String, Stream)>,
+        mut pong_rx: Receiver<String>,
     ) {
         info!("Publisher started");
 
@@ -70,10 +72,20 @@ impl Publisher {
             }
         });
 
-        //[TODO]
-        // This is a dummy implementation
-        // - It should be refactored to send the messages to the clients
-        // - Need some error handling and disconnection handling
+        let clients = self.clients.clone();
+        tokio::spawn(async move {
+            while let Some(addr) = pong_rx.recv().await {
+                match clients.lock().await.get_mut(&addr) {
+                    Some(stream) => {
+                        let _ = stream.send(Message::Text("pong".to_string())).await;
+                    }
+                    None => {}
+                }
+            }
+        });
+
+        // [TODO]
+        // Refactor duplicate code : maybe use select?
         let clients = self.clients.clone();
         let client_commit_idx = self.client_commit_idx.clone();
         let state_machine = self.state_machine.clone();

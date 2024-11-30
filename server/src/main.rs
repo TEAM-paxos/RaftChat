@@ -136,6 +136,7 @@ async fn run_tasks(
 ) -> (
     Sender<(String, data_model::msg::ClientMsg)>,
     Sender<(String, SplitSink<WebSocketStream<TcpStream>, Message>)>,
+    Sender<String>,
 ) {
     let raft_config = raft::RaftConfig {
         // rpc address
@@ -181,10 +182,12 @@ async fn run_tasks(
     };
 
     // writer task
+    let (ping_tx, pong_rx): (Sender<String>, Receiver<String>) = mpsc::channel(128);
+
     let (writer_tx, writer_rx): (
         Sender<(String, data_model::msg::ClientMsg)>,
         Receiver<(String, data_model::msg::ClientMsg)>,
-    ) = mpsc::channel(15);
+    ) = mpsc::channel(512);
 
     let writer = events::task::Writer::new(hash.clone());
     writer.start(writer_rx, req_tx).await;
@@ -193,12 +196,12 @@ async fn run_tasks(
     let (pub_tx, pub_rx): (
         Sender<(String, SplitSink<WebSocketStream<TcpStream>, Message>)>,
         Receiver<(String, SplitSink<WebSocketStream<TcpStream>, Message>)>,
-    ) = mpsc::channel(15);
+    ) = mpsc::channel(128);
 
     let publisher = events::task::Publisher::new(Vec::new(), hash.clone());
-    publisher.start(log_rx, pub_rx).await;
+    publisher.start(log_rx, pub_rx, pong_rx).await;
 
-    return (writer_tx, pub_tx);
+    return (writer_tx, pub_tx, ping_tx);
 }
 
 #[tokio::main]
@@ -213,7 +216,7 @@ async fn main() {
     let client_commit_idx: Arc<tokio::sync::Mutex<HashMap<String, u64>>> =
         Arc::new(tokio::sync::Mutex::new(HashMap::new()));
 
-    let (writer_tx, pub_tx) = run_tasks(client_commit_idx, &config).await;
+    let (writer_tx, pub_tx, ping_tx) = run_tasks(client_commit_idx, &config).await;
 
     // websocket server
     let addr = SocketAddr::from(([0, 0, 0, 0], config.socket_ports[config.self_domain_idx]));
@@ -223,8 +226,9 @@ async fn main() {
     while let Ok((stream, addr)) = listener.accept().await {
         let w_tx = writer_tx.clone();
         let p_tx = pub_tx.clone();
+        let ping_tx = ping_tx.clone();
         tokio::spawn(async move {
-            events::handler::client_handler(stream, addr, w_tx, p_tx).await;
+            events::handler::client_handler(stream, addr, w_tx, p_tx, ping_tx).await;
         });
     }
 }

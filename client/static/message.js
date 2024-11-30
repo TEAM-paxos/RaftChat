@@ -49,6 +49,8 @@ export class MsgHandler {
     return this.#timeStamp;
   }
 
+  // Return the nums of timeout
+  // When timeout, reset sendIndex 0 and msgsize = 1
   timeoutCheck() {
     if (
       this.#msgSent.length == 0 ||
