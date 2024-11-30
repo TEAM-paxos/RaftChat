@@ -5,7 +5,7 @@
 # RaftChat
 Chatting system using [raft protocol](https://raft.github.io/)
 
-We implmented Leader Election + Log Replication +	Persistence(soon), not Membership Changes, Log Compaction.
+We implemented Leader Election + Log Replication +	Persistence(soon), not Membership Changes, Log Compaction.
 
 The write operation guarantees [linearizability](https://en.wikipedia.org/wiki/Linearizability), and the read operation guarantees [monotonic read](https://en.wikipedia.org/wiki/Consistency_model#:~:text=Monotonic%20read%20consistency).
 The level of consistency was lowered according to the operation of the chatting to distribute the load of the read operation.
