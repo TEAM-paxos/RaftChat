@@ -353,7 +353,7 @@ impl Writer {
                         msg.get_content()
                     );
 
-                    let log_data = LogData::new(msg.get_id(), msg.get_content(), msg.get_time());
+                    let log_data = LogData::new(msg.get_uid(), msg.get_content(), msg.get_time());
 
                     let req = UserRequestArgs {
                         client_id: msg.get_id(),
