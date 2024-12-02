@@ -9,7 +9,6 @@ use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 
 #[derive(Serialize, Deserialize)]
-
 pub struct PersistentStateElement {
     current_term: u64,
     voted_for: Option<String>,
@@ -88,5 +87,70 @@ impl PersistentState {
             }
             Some(recipient) => *recipient == candidate,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::net::{Ipv4Addr, SocketAddr};
+    use tempfile::tempdir;
+
+    // Helper function to create a dummy RaftConfig
+    fn create_raft_config() -> RaftConfig {
+        RaftConfig {
+            serve_addr: SocketAddr::new(Ipv4Addr::new(127, 0, 0, 1).into(), 8080),
+            self_id: "1",
+            peers: vec!["1", "2", "3", "4", "5"],
+            election_duration: (3000, 4000), // raft paper: 150ms ~ 300ms
+            heartbeat_duration: tokio::time::Duration::from_millis(250),
+            persistent_state_path: std::path::Path::new("TODO : path to persistent_state"),
+            persistent_state_backup_path: std::path::Path::new(
+                "TODO : path to persistent_state_backup",
+            ),
+            wal_path: std::path::Path::new("TODO : path to wal"),
+        }
+    }
+
+    #[test]
+    fn test_new_with_existing_file() {
+        let dir = tempdir().expect("Failed to create temp dir");
+        let path = dir.path().join("state.json");
+        let backup_path = dir.path().join("backup_state.json");
+
+        // Write initial state to file
+        let initial_state = PersistentStateElement {
+            current_term: 5,
+            voted_for: Some("1".to_string()),
+        };
+        fs::write(&path, serde_json::to_string(&initial_state).unwrap())
+            .expect("Failed to write initial state");
+
+        // Dummy RaftConfig
+        let config = create_raft_config();
+
+        // Initialize PersistentState
+        let state = PersistentState::new(&config, &path, &backup_path);
+
+        // Validate loaded state
+        assert_eq!(state.current_term(), 5);
+        assert_eq!(state.voted_for(), Some("1"));
+    }
+
+    #[test]
+    fn test_new_with_missing_file() {
+        let dir = tempdir().expect("Failed to create temp dir");
+        let path = dir.path().join("state.json");
+        let backup_path = dir.path().join("backup_state.json");
+
+        // Dummy RaftConfig
+        let config = create_raft_config();
+
+        // Initialize PersistentState with no existing file
+        let state = PersistentState::new(&config, &path, &backup_path);
+
+        // Validate default state
+        assert_eq!(state.current_term(), 0);
+        assert_eq!(state.voted_for(), None);
     }
 }
