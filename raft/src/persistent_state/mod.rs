@@ -22,12 +22,9 @@ pub struct PersistentState {
 }
 
 impl PersistentState {
-    pub fn new(config: &RaftConfig, path: &Path, backup_path: &Path) -> PersistentState {
-        let element: PersistentStateElement = if path.exists() {
-            let mut file = fs::File::open(path).expect("Failed to open persistent state file");
-            let mut contents = String::new();
-            file.read_to_string(&mut contents)
-                .expect("Failed to read persistent state file");
+    pub fn new(config: &RaftConfig, path: &Path, backup_path: &Path) -> Self {
+        let element = if path.exists() {
+            let contents = fs::read_to_string(path).expect("Failed to read persistent state file");
             serde_json::from_str(&contents).expect("Failed to deserialize persistent state")
         } else {
             PersistentStateElement {
@@ -36,11 +33,13 @@ impl PersistentState {
             }
         };
 
-        let current_term = element.current_term;
-        let voted_for = config.get_peer(element.voted_for.as_deref().unwrap_or(""));
+        let voted_for = element
+            .voted_for
+            .as_deref()
+            .and_then(|id| config.get_peer(id));
 
-        PersistentState {
-            current_term,
+        Self {
+            current_term: element.current_term,
             voted_for,
             path: path.to_path_buf(),
             backup_path: backup_path.to_path_buf(),
@@ -104,11 +103,9 @@ mod tests {
             peers: vec!["1", "2", "3", "4", "5"],
             election_duration: (3000, 4000), // raft paper: 150ms ~ 300ms
             heartbeat_duration: tokio::time::Duration::from_millis(250),
-            persistent_state_path: std::path::Path::new("TODO : path to persistent_state"),
-            persistent_state_backup_path: std::path::Path::new(
-                "TODO : path to persistent_state_backup",
-            ),
-            wal_path: std::path::Path::new("TODO : path to wal"),
+            persistent_state_path: Path::new("TODO : path to persistent_state"),
+            persistent_state_backup_path: Path::new("TODO : path to persistent_state_backup"),
+            wal_path: Path::new("TODO : path to wal"),
         }
     }
 
