@@ -1,20 +1,48 @@
 // persistent state
 
+use crate::RaftConfig;
 use atomic_write_file::AtomicWriteFile;
-use std::path::Path;
+use serde::{Deserialize, Serialize};
+use serde_json;
+use std::fs;
+use std::io::{Read, Write};
+use std::path::{Path, PathBuf};
+
+#[derive(Serialize, Deserialize)]
+pub struct PersistentStateElement {
+    current_term: u64,
+    voted_for: Option<String>,
+}
 
 pub struct PersistentState {
-    // These data must be stored on persistent storage
     current_term: u64,
     voted_for: Option<&'static str>,
+    path: PathBuf,
+    backup_path: PathBuf,
 }
 
 impl PersistentState {
-    pub fn new(path: &Path) -> PersistentState {
-        // TODO : initialize with data from path
-        PersistentState {
-            current_term: 0,
-            voted_for: None,
+    pub fn new(config: &RaftConfig, path: &Path, backup_path: &Path) -> Self {
+        let element = if path.exists() {
+            let contents = fs::read_to_string(path).expect("Failed to read persistent state file");
+            serde_json::from_str(&contents).expect("Failed to deserialize persistent state")
+        } else {
+            PersistentStateElement {
+                current_term: 0,
+                voted_for: None,
+            }
+        };
+
+        let voted_for = element
+            .voted_for
+            .as_deref()
+            .and_then(|id| config.get_peer(id));
+
+        Self {
+            current_term: element.current_term,
+            voted_for,
+            path: path.to_path_buf(),
+            backup_path: backup_path.to_path_buf(),
         }
     }
 
@@ -58,5 +86,68 @@ impl PersistentState {
             }
             Some(recipient) => *recipient == candidate,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::net::{Ipv4Addr, SocketAddr};
+    use tempfile::tempdir;
+
+    // Helper function to create a dummy RaftConfig
+    fn create_raft_config() -> RaftConfig {
+        RaftConfig {
+            serve_addr: SocketAddr::new(Ipv4Addr::new(127, 0, 0, 1).into(), 8080),
+            self_id: "1",
+            peers: vec!["1", "2", "3", "4", "5"],
+            election_duration: (3000, 4000), // raft paper: 150ms ~ 300ms
+            heartbeat_duration: tokio::time::Duration::from_millis(250),
+            persistent_state_path: Path::new("TODO : path to persistent_state"),
+            persistent_state_backup_path: Path::new("TODO : path to persistent_state_backup"),
+            wal_path: Path::new("TODO : path to wal"),
+        }
+    }
+
+    #[test]
+    fn test_new_with_existing_file() {
+        let dir = tempdir().expect("Failed to create temp dir");
+        let path = dir.path().join("state.json");
+        let backup_path = dir.path().join("backup_state.json");
+
+        // Write initial state to file
+        let initial_state = PersistentStateElement {
+            current_term: 5,
+            voted_for: Some("1".to_string()),
+        };
+        fs::write(&path, serde_json::to_string(&initial_state).unwrap())
+            .expect("Failed to write initial state");
+
+        // Dummy RaftConfig
+        let config = create_raft_config();
+
+        // Initialize PersistentState
+        let state = PersistentState::new(&config, &path, &backup_path);
+
+        // Validate loaded state
+        assert_eq!(state.current_term(), 5);
+        assert_eq!(state.voted_for(), Some("1"));
+    }
+
+    #[test]
+    fn test_new_with_missing_file() {
+        let dir = tempdir().expect("Failed to create temp dir");
+        let path = dir.path().join("state.json");
+        let backup_path = dir.path().join("backup_state.json");
+
+        // Dummy RaftConfig
+        let config = create_raft_config();
+
+        // Initialize PersistentState with no existing file
+        let state = PersistentState::new(&config, &path, &backup_path);
+
+        // Validate default state
+        assert_eq!(state.current_term(), 0);
+        assert_eq!(state.voted_for(), None);
     }
 }
