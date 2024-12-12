@@ -209,7 +209,7 @@ impl MyRaftChat {
         let prev_length = args.prev_length;
         let entries_len = args.entries.len() as u64;
         if entries_len > 0 {
-            info!("send non empty append entries to {}", peer);
+            debug!("send non empty append entries to {}", peer);
         }
         if let Ok(res) = client.append_entries(Request::new(args)).await {
             let res = res.into_inner();
@@ -227,7 +227,7 @@ impl MyRaftChat {
                 {
                     if res.success {
                         if entries_len > 0 {
-                            info!("received append entries ack from {} (succed)", peer);
+                            debug!("received append entries ack from {} (succed)", peer);
                         }
                         // Update match_length
                         // TODO : Check this
@@ -253,7 +253,7 @@ impl MyRaftChat {
                                 s.commit_alarm.drain(..).collect();
                             for (i, ch) in v {
                                 if i < l {
-                                    info!("send commit alarm for {} < {}", i, l);
+                                    debug!("send commit alarm for {} < {}", i, l);
                                     let _ = ch.send(true);
                                 } else {
                                     s.commit_alarm.push((i, ch));
@@ -262,7 +262,7 @@ impl MyRaftChat {
                         }
                     } else {
                         if entries_len > 0 {
-                            info!("received append entries ack from {} (failed)", peer);
+                            debug!("received append entries ack from {} (failed)", peer);
                         }
                         assert!(prev_length > 0); // NB : If prev_length == 0 and res.term == term,
                                                   // then it is absurd to reject append entries rpc
@@ -377,7 +377,7 @@ impl RaftChat for Arc<MyRaftChat> {
     ) -> Result<Response<AppendEntriesRes>, Status> {
         let args: AppendEntriesArgs = request.into_inner();
         if args.entries.len() > 0 {
-            info!("non empty append entries received");
+            debug!("non empty append entries received");
         }
         let mut guard = self.state.lock();
         let (current_term, ok) = guard.persistent_state.update_term(args.term);
@@ -422,7 +422,7 @@ impl RaftChat for Arc<MyRaftChat> {
         &self,
         request: Request<RequestVoteArgs>,
     ) -> Result<Response<RequestVoteRes>, Status> {
-        info!("request_vote");
+        debug!("request_vote");
 
         let args: RequestVoteArgs = request.into_inner();
         let mut guard = self.state.lock();
