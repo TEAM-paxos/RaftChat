@@ -27,14 +27,23 @@ export class Engine {
   USER_IMG = "https://www.gravatar.com/avatar/056effcac7fca237926f57ba2450429a";
 
   // html attributes
-  constructor(storage) {
+  constructor(storage, enable_dom) {
     this.id = utils.getRandomString(7);
     this.userId = utils.getRandomString(7);
     this.committedIndex = 0; // committed index that client want to receive
-
+    this.enable_dom = enable_dom;
     this.limitsOfTimeout = 5;
     this.retry_flag = 0;
 
+    this.storage = storage;
+    this.msgHandler = new MsgHandler(this.storage);
+
+    this.pingSent = -1;
+    this.pingLimitTime = 10000; //ms
+
+    if(enable_dom == false){
+      return;
+    }
     this.msgerForm = utils.get(".msger-inputarea");
     this.msgerBtn = utils.get(".msger-send-btn");
     this.msgerInput = utils.get(".msger-input");
@@ -43,74 +52,77 @@ export class Engine {
     this.connectBtn = utils.get(".connect-btn");
     this.notCommittedChat = utils.get(".nc-msger-chat");
     this.serverInfoDiv = utils.get(".server-info");
-    this.storage = storage;
-    this.msgHandler = new MsgHandler(this.storage);
     
-    this.pingSent = -1;
-    this.pingLimitTime = 10000; //ms
-
     this.msgerBtn.disabled = true;
 
     this.portForm.addEventListener("submit", (event) => {
       event.preventDefault();
+      this.connectBtn.disabled = true;
 
-      console.log("call func");
       fetch("/get_info")
         .then((response) => response.json())
         .then((data) => {
           console.log(data);
-          this.info = data;
-
-          // load from storage
-          if (this.info.refresh_token == this.storage.getRefreshToken()) {
-            try {
-              this.committedIndex = parseInt(this.storage.getLatestIdx());
-              this.id = this.storage.getId();
-              this.userId = this.storage.getUid();
-
-              console.log(
-                this.committedIndex + " " + this.id + " " + this.userId
-              );
-
-              for (let i = 0; i < this.committedIndex; i++) {
-                let msg = this.storage.getMessage(i);
-
-                if (msg.id == this.id) {
-                  this.appendCommittedMessage(
-                    msg.user_id,
-                    utils.genImage(msg.user_id),
-                    "right",
-                    msg.content,
-                    msg.time,
-                    i
-                  );
-                } else {
-                  this.appendCommittedMessage(
-                    msg.user_id,
-                    utils.genImage(msg.user_id),
-                    "left",
-                    msg.content,
-                    msg.time,
-                    i
-                  );
-                }
-              }
-            } catch (err) {
-              console.log("reading storage" + err);
-            }
-          } else {
-            this.storage.
-              reset(this.id, this.userId, this.info.version, this.info.refresh_token);
-          }
-
-          this.connectWS(
-            this.info.domains[this.info.self_domain_idx],
-            this.info.socket_ports[this.info.self_domain_idx]
-          );
+          this.setup(data);
         });
     });
 
-    this.msgerForm.addEventListener("submit", this.sendToServer.bind(this));
+    this.msgerForm.addEventListener("submit", this.sendToServerHandler.bind(this));
+  }
+
+  // initialize status from data and storage.
+  setup(data){
+    this.info = data;
+
+    // load from storage
+    if (this.info.refresh_token == this.storage.getRefreshToken()) {
+      try {
+        this.committedIndex = parseInt(this.storage.getLatestIdx());
+        this.id = this.storage.getId();
+        this.userId = this.storage.getUid();
+
+        console.log(
+          this.committedIndex + " " + this.id + " " + this.userId
+        );
+
+        // print message on html
+        if(this.enable_dom == true){
+          for (let i = 0; i < this.committedIndex; i++) {
+            let msg = this.storage.getMessage(i);
+  
+            if (msg.id == this.id) {
+              this.appendCommittedMessage(
+                msg.user_id,
+                utils.genImage(msg.user_id),
+                "right",
+                msg.content,
+                msg.time,
+                i
+              );
+            } else {
+              this.appendCommittedMessage(
+                msg.user_id,
+                utils.genImage(msg.user_id),
+                "left",
+                msg.content,
+                msg.time,
+                i
+              );
+            }
+          }
+        }
+      } catch (err) {
+        console.log("reading storage" + err);
+      }
+    } else {
+      this.storage.
+        reset(this.id, this.userId, this.info.version, this.info.refresh_token);
+    }
+
+    this.connectWS(
+      this.info.domains[this.info.self_domain_idx],
+      this.info.socket_ports[this.info.self_domain_idx]
+    );
   }
 
   connectWS(host, port) {
@@ -126,21 +138,20 @@ export class Engine {
 
     console.log("connect to " + host + " : " + port);
 
-    this.connectBtn.disabled = true;
-
     this.interval_handler;
 
     this.socket.onopen = () => {
       console.log("WebSocket is open");
       this.retry_flag = 0;
       this.pingSent = -1;
-      this.connectBtn.style.backgroundColor = "rgb(118, 255, 167)";
-
+      
       //update server info ui
-      this.serverInfoDiv.style.color = "rgb(0, 196, 65)";
-      this.serverInfoDiv.innerHTML = "DEST > " + host + ":" + port;
-
-      this.msgerBtn.disabled = false;
+      if(this.enable_dom == true){
+        this.connectBtn.style.backgroundColor = "rgb(118, 255, 167)";
+        this.serverInfoDiv.style.color = "rgb(0, 196, 65)";
+        this.serverInfoDiv.innerHTML = "DEST > " + host + ":" + port;
+        this.msgerBtn.disabled = false;
+      }
       
       this.retransmission.bind(this);
       this.interval_handler = setInterval(this.retransmission.bind(this), 5000);
@@ -161,16 +172,23 @@ export class Engine {
     this.socket.onerror = (error) => {
       // repeat connect the other server
       console.log("Error has occured:", error);
-      this.connectBtn.style.backgroundColor = "red";
-      this.serverInfoDiv.style.color = "red";
+
+      if(this.enable_dom == true){
+        this.connectBtn.style.backgroundColor = "red";
+        this.serverInfoDiv.style.color = "red";
+      }
+      
       this.socket.close();
     };
 
     this.socket.onclose = (error) => {
-      //this.msgerBtn.disabled = true;
       console.log("Connection is closed", error);
-      this.connectBtn.style.backgroundColor = "red";
-      this.serverInfoDiv.style.color = "red";
+      
+      if(this.enable_dom == true){
+        this.connectBtn.style.backgroundColor = "red";
+        this.serverInfoDiv.style.color = "red";
+      }
+      
       clearInterval(this.interval_handler);
       setTimeout(this.retry_connection.bind(this), 1000);
     };
@@ -257,24 +275,31 @@ export class Engine {
     }
   }
 
-  sendToServer(event) {
+  sendToServerHandler(event){
     event.preventDefault();
+    this.sendToServer(this.msgerInput.value);
 
-    const msgText = this.msgerInput.value;
+  }
+
+  sendToServer(msgText) {
     if (!msgText) return;
 
     // 0. Save message into msgHandler.
     let timestamp = this.msgHandler.append(this.id, this.userId, msgText);
 
     // 1. Update html
-    this.appendNotCommittedMessage(
-      this.userId,
-      utils.genImage(this.userId),
-      "right",
-      msgText,
-      timestamp
-    );
-    this.msgerInput.value = "";
+
+    if(this.enable_dom==true){
+      this.appendNotCommittedMessage(
+        this.userId,
+        utils.genImage(this.userId),
+        "right",
+        msgText,
+        timestamp
+      );
+      this.msgerInput.value = "";
+    }
+    
 
     // 2. Send messages from msgHandler.
     let msgArray = this.msgHandler.toJsonArray();
@@ -314,6 +339,10 @@ export class Engine {
       if (msg.id == this.id) {
         // Clean up msgHandler
         this.msgHandler.cleanUp(msg.time_stamp);
+
+        if(this.enable_dom == false){
+          continue;
+        }
 
         try {
           // Clean up not committed chat

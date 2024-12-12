@@ -11,5 +11,5 @@ import { Storage } from './storage.js';
 let engine
 // initialize
 window.onload = function () {
-    engine = new Engine(new Storage());
+    engine = new Engine(new Storage(), true);
 }
