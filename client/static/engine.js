@@ -34,7 +34,7 @@ export class Engine {
     this.committedIndex = 0; // committed index that client want to receive
     this.serverNameList = serverNameList;
 
-    this.limitsOfTimeout = 3;
+    this.limitsOfTimeout = 5;
     this.retry_flag = 0;
 
     this.msgerForm = utils.get(".msger-inputarea");
@@ -47,6 +47,9 @@ export class Engine {
     this.serverInfoDiv = utils.get(".server-info");
     this.msgHandler = new MsgHandler();
     this.storage = new Storage();
+
+    this.pingSent = -1;
+    this.pingLimitTime = 10000; //ms
 
     this.msgerBtn.disabled = true;
 
@@ -136,6 +139,7 @@ export class Engine {
     this.socket.onopen = () => {
       console.log("WebSocket is open");
       this.retry_flag = 0;
+      this.pingSent = -1;
       this.connectBtn.style.backgroundColor = "rgb(118, 255, 167)";
 
       //update server info ui
@@ -143,13 +147,21 @@ export class Engine {
       this.serverInfoDiv.innerHTML = "DEST > " + host + ":" + port;
 
       this.msgerBtn.disabled = false;
+      
+      this.retransmission.bind(this);
       this.interval_handler = setInterval(this.retransmission.bind(this), 5000);
     };
 
     this.socket.onmessage = (event) => {
       console.log("Message from server:", event.data);
       this.numOfRetryConnect = 0;
-      this.updateState(event.data);
+      if(event.data == "pong"){
+        //console.log("pong received");
+        this.pingSent = Date.now();
+      }
+      else {
+        this.updateState(event.data);
+      }
     };
 
     this.socket.onerror = (error) => {
@@ -161,7 +173,7 @@ export class Engine {
     };
 
     this.socket.onclose = (error) => {
-      this.msgerBtn.disabled = true;
+      //this.msgerBtn.disabled = true;
       console.log("Connection is closed", error);
       this.connectBtn.style.backgroundColor = "red";
       this.serverInfoDiv.style.color = "red";
@@ -197,11 +209,26 @@ export class Engine {
   retransmission() {
     // block retry connect forever.
     if (this.numOfRetryConnect > this.limitsOfRetryConnect) return;
+    //console.log("retransmission");
 
-    console.log("retransmission");
-    let timeout = this.msgHandler.timeoutCheck();
-    if (timeout >= this.limitsOfTimeout) {
-      console.log(timeout + " > " + this.limitsOfTimeout);
+    // if time outed -> reset msg index to 0, msg size to 1
+    let numOfTimeout = this.msgHandler.timeoutCheck();
+    
+    let pongFail = false;
+
+    // if ping time exceeds timeout, close immediately
+    if(this.pingSent!=-1 && Date.now()-this.pingSent > this.pingLimitTime){
+      console.log("pong time out" + Date.now()-this.pingSent + " > " + this.pingLimitTime + ":" + this.pingSent);
+      pongFail = true
+    }   
+    // send ping
+    this.socket.send("ping")
+
+    // ping pong -> server dead ?
+    // timeout -> server is so slow ...
+    // -> reconnect other server
+    if ( pongFail || numOfTimeout >= this.limitsOfTimeout) {
+      console.log(numOfTimeout + " > " + this.limitsOfTimeout);
       console.log("close immediately");
 
       let prev_socket = this.socket;

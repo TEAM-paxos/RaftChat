@@ -1,4 +1,5 @@
 use crate::data_model::msg::ClientMsg;
+use core::str;
 use futures_util::{
     stream::{SplitSink, SplitStream},
     StreamExt,
@@ -15,6 +16,7 @@ pub async fn client_handler(
     addr: std::net::SocketAddr,
     writer_tx: tokio::sync::mpsc::Sender<(String, ClientMsg)>,
     publisher_tx: tokio::sync::mpsc::Sender<(String, Stream)>,
+    ping_tx: tokio::sync::mpsc::Sender<String>,
 ) {
     info!("Incoming WebSocket connection from: {}", addr);
 
@@ -26,7 +28,7 @@ pub async fn client_handler(
     let (write_stream, read_stream) = ws_steam.split();
 
     let join_handle = tokio::spawn(async move {
-        read_task(read_stream, writer_tx, addr.clone()).await;
+        read_task(read_stream, writer_tx, addr.clone(), ping_tx).await;
     });
 
     // Send write_stream to publisher
@@ -42,6 +44,7 @@ async fn read_task(
     mut read_stream: SplitStream<WebSocketStream<TcpStream>>,
     writer_tx: tokio::sync::mpsc::Sender<(String, ClientMsg)>,
     addr: std::net::SocketAddr,
+    ping_tx: tokio::sync::mpsc::Sender<String>,
 ) {
     info!("read_task started");
 
@@ -49,6 +52,11 @@ async fn read_task(
         let msg = msg.unwrap_or(Message::Close(None));
         match msg {
             Message::Text(text) => {
+                if text == "ping" {
+                    ping_tx.send(addr.to_string()).await.unwrap();
+                    continue;
+                }
+
                 let client_msg: ClientMsg = serde_json::from_str(&text).unwrap_or_else(|err| {
                     error!("{}", text);
                     error!("{}", err);
@@ -61,6 +69,16 @@ async fn read_task(
                     .unwrap();
             }
             Message::Binary(data) => {
+                match str::from_utf8(&data) {
+                    Ok(text) => {
+                        if text == "ping" {
+                            ping_tx.send(addr.to_string()).await.unwrap();
+                            continue;
+                        }
+                    }
+                    _ => {}
+                }
+
                 let client_msg: ClientMsg = serde_json::from_slice(&data).unwrap();
                 writer_tx
                     .send((addr.to_string(), client_msg))
