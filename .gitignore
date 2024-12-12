@@ -3,3 +3,4 @@
 /client/node_modules
 *.log
 /test*
+/local_monitor/grafana
