@@ -6,9 +6,10 @@
  */
 
 import { Engine } from './engine.js'
+import { Storage } from './storage.js';
 
 let engine
 // initialize
 window.onload = function () {
-    engine = new Engine();
+    engine = new Engine(new Storage());
 }

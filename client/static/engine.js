@@ -15,7 +15,6 @@ export class Engine {
   committedIndex;
   currentHost;
   currentPort;
-  serverNameList = [];
   limitsOfRetryConnect = 10;
   numOfRetryConnect = 0;
 
@@ -28,11 +27,10 @@ export class Engine {
   USER_IMG = "https://www.gravatar.com/avatar/056effcac7fca237926f57ba2450429a";
 
   // html attributes
-  constructor(serverNameList) {
+  constructor(storage) {
     this.id = utils.getRandomString(7);
     this.userId = utils.getRandomString(7);
     this.committedIndex = 0; // committed index that client want to receive
-    this.serverNameList = serverNameList;
 
     this.limitsOfTimeout = 5;
     this.retry_flag = 0;
@@ -45,9 +43,9 @@ export class Engine {
     this.connectBtn = utils.get(".connect-btn");
     this.notCommittedChat = utils.get(".nc-msger-chat");
     this.serverInfoDiv = utils.get(".server-info");
-    this.msgHandler = new MsgHandler();
-    this.storage = new Storage();
-
+    this.storage = storage;
+    this.msgHandler = new MsgHandler(this.storage);
+    
     this.pingSent = -1;
     this.pingLimitTime = 10000; //ms
 
@@ -101,12 +99,8 @@ export class Engine {
               console.log("reading storage" + err);
             }
           } else {
-            this.storage.clear();
-            this.storage.setIdUid(this.id, this.userId);
-            this.storage.setServerVersion(this.info.version);
-            this.storage.setRefreshToken(this.info.refresh_token);
-            this.storage.setLatestIdx(0);
-            this.storage.setTimeStamp(0);
+            this.storage.
+              reset(this.id, this.userId, this.info.version, this.info.refresh_token);
           }
 
           this.connectWS(

@@ -64,4 +64,14 @@ export class Storage {
   clear() {
     localStorage.clear();
   }
+
+  reset(id, uid, version, refresh_token){
+    localStorage.clear();
+    localStorage.setItem("id", id);
+    localStorage.setItem("uid", uid);
+    localStorage.setItem("serverVersion", version);
+    localStorage.setItem("refreshToken", refresh_token);
+    localStorage.setItem("latestIdx", 0);
+    localStorage.setItem("timeStamp", 0);
+  }
 }
