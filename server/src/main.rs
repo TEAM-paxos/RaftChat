@@ -2,7 +2,8 @@ use axum::Extension;
 use axum::{routing::get, Router};
 use clap::Parser;
 use futures_util::stream::SplitSink;
-use log::{info, set_logger};
+use log::info;
+use metrics::{metrics_handler, AppState};
 use raft::persistent_state::PersistentState;
 use std::collections::HashMap;
 use std::env;
@@ -18,6 +19,7 @@ use tower_http::services::ServeDir;
 mod axum_handler;
 mod data_model;
 mod events;
+mod metrics;
 
 #[derive(Clone, serde::Serialize, Debug)]
 struct Config {
@@ -111,14 +113,16 @@ async fn setup() -> Config {
     };
 }
 
-async fn run_axum(config: &Config) {
+async fn run_axum(config: &Config, server_state: Arc<tokio::sync::Mutex<AppState>>) {
     // axum server
     let addr = SocketAddr::from(([0, 0, 0, 0], config.web_ports[config.self_domain_idx]));
     let app = Router::new()
         .route("/", get(axum_handler::handler))
         .nest_service("/static", ServeDir::new("./client/static"))
         .route("/get_info", get(axum_handler::get_info))
-        .layer(Extension(config.clone()));
+        .layer(Extension(config.clone()))
+        .route("/metrics", get(metrics_handler))
+        .with_state(server_state);
 
     let listener = TcpListener::bind(&addr).await.unwrap();
 
@@ -207,10 +211,15 @@ async fn run_tasks(
 #[tokio::main]
 async fn main() {
     let config: Config = setup().await;
-
     info!("{:?}", config);
 
-    run_axum(&config).await;
+    // setup metrics
+    let (metrics, server_state) = metrics::new();
+
+    let metrics = Arc::new(tokio::sync::Mutex::new(metrics));
+    let server_state = Arc::new(tokio::sync::Mutex::new(server_state));
+
+    run_axum(&config, server_state).await;
 
     // writer and publisher set up
     let client_commit_idx: Arc<tokio::sync::Mutex<HashMap<String, u64>>> =
@@ -227,8 +236,10 @@ async fn main() {
         let w_tx = writer_tx.clone();
         let p_tx = pub_tx.clone();
         let ping_tx = ping_tx.clone();
+        let metrics = metrics.clone();
+
         tokio::spawn(async move {
-            events::handler::client_handler(stream, addr, w_tx, p_tx, ping_tx).await;
+            events::handler::client_handler(stream, addr, w_tx, p_tx, ping_tx, metrics).await;
         });
     }
 }

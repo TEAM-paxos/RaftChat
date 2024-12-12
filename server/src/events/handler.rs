@@ -1,10 +1,10 @@
-use crate::data_model::msg::ClientMsg;
+use crate::{data_model::msg::ClientMsg, metrics};
 use core::str;
 use futures_util::{
     stream::{SplitSink, SplitStream},
     StreamExt,
 };
-use log::{error, info, warn};
+use log::{error, info, warn, Metadata};
 use std::process;
 use tokio::net::TcpStream;
 use tokio_tungstenite::{tungstenite::Message, WebSocketStream};
@@ -17,6 +17,7 @@ pub async fn client_handler(
     writer_tx: tokio::sync::mpsc::Sender<(String, ClientMsg)>,
     publisher_tx: tokio::sync::mpsc::Sender<(String, Stream)>,
     ping_tx: tokio::sync::mpsc::Sender<String>,
+    metrics: std::sync::Arc<tokio::sync::Mutex<metrics::Metrics>>
 ) {
     info!("Incoming WebSocket connection from: {}", addr);
 
@@ -28,7 +29,7 @@ pub async fn client_handler(
     let (write_stream, read_stream) = ws_steam.split();
 
     let join_handle = tokio::spawn(async move {
-        read_task(read_stream, writer_tx, addr.clone(), ping_tx).await;
+        read_task(read_stream, writer_tx, addr.clone(), ping_tx, metrics).await;
     });
 
     // Send write_stream to publisher
@@ -45,8 +46,10 @@ async fn read_task(
     writer_tx: tokio::sync::mpsc::Sender<(String, ClientMsg)>,
     addr: std::net::SocketAddr,
     ping_tx: tokio::sync::mpsc::Sender<String>,
+    metrics: std::sync::Arc<tokio::sync::Mutex<metrics::Metrics>>
 ) {
     info!("read_task started");
+    metrics.lock().await.inc_connections();
 
     while let Some(msg) = read_stream.next().await {
         let msg = msg.unwrap_or(Message::Close(None));
@@ -94,4 +97,6 @@ async fn read_task(
             }
         }
     }
+
+    metrics.lock().await.dec_connections();
 }
