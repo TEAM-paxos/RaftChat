@@ -5,73 +5,102 @@
  * See the LICENSE file in the project root for more information.
 */
 
+class LocalStorageMock {
+  constructor() {
+    this.store = {};
+  }
+
+  clear() {
+    this.store = {};
+  }
+
+  getItem(key) {
+    return this.store[key] || null;
+  }
+
+  setItem(key, value) {
+    this.store[key] = String(value);
+  }
+
+  removeItem(key) {
+    delete this.store[key];
+  }
+}
+
 export class Storage {
+  constructor() {
+    if (typeof localStorage === "undefined" || localStorage === null) {
+      this.localStorage = new LocalStorageMock();
+    } else {
+      this.localStorage = localStorage;
+    }
+  }
   setServerVersion(version) {
-    localStorage.setItem("serverVersion", version);
+    this.localStorage.setItem("serverVersion", version);
   }
 
   getServerVersion() {
-    return localStorage.getItem("serverVersion");
+    return this.localStorage.getItem("serverVersion");
   }
 
   setRefreshToken(token) {
-    localStorage.setItem("refreshToken", token);
+    this.localStorage.setItem("refreshToken", token);
   }
 
   getRefreshToken() {
-    return localStorage.getItem("refreshToken");
+    return this.localStorage.getItem("refreshToken");
   }
 
   setTimeStamp(timeStamp) {
-    return localStorage.setItem("timeStamp", timeStamp);
+    return this.localStorage.setItem("timeStamp", timeStamp);
   }
 
   getTimeStamp(timeStamp) {
-    return localStorage.getItem("timeStamp", timeStamp);
+    return this.localStorage.getItem("timeStamp", timeStamp);
   }
 
   setIdUid(id, uid) {
-    localStorage.setItem("id", id);
-    localStorage.setItem("uid", uid);
+    this.localStorage.setItem("id", id);
+    this.localStorage.setItem("uid", uid);
   }
 
   getUid() {
-    return localStorage.getItem("uid");
+    return this.localStorage.getItem("uid");
   }
 
   getId() {
-    return localStorage.getItem("id");
+    return this.localStorage.getItem("id");
   }
 
   setLatestIdx(idx) {
-    localStorage.setItem("latestIdx", idx);
+    this.localStorage.setItem("latestIdx", idx);
   }
 
   getLatestIdx() {
-    return localStorage.getItem("latestIdx");
+    return this.localStorage.getItem("latestIdx");
   }
 
   // idx, msg : json
   saveMessage(idx, msg) {
-    localStorage.setItem(idx, JSON.stringify(msg));
+    this.localStorage.setItem(idx, JSON.stringify(msg));
   }
 
   // idx -> json
   getMessage(idx) {
-    return JSON.parse(localStorage.getItem(idx));
+    return JSON.parse(this.localStorage.getItem(idx));
   }
 
   clear() {
-    localStorage.clear();
+    this.localStorage.clear();
   }
 
   reset(id, uid, version, refresh_token){
-    localStorage.clear();
-    localStorage.setItem("id", id);
-    localStorage.setItem("uid", uid);
-    localStorage.setItem("serverVersion", version);
-    localStorage.setItem("refreshToken", refresh_token);
-    localStorage.setItem("latestIdx", 0);
-    localStorage.setItem("timeStamp", 0);
+    this.localStorage.clear();
+    this.localStorage.setItem("id", id);
+    this.localStorage.setItem("uid", uid);
+    this.localStorage.setItem("serverVersion", version);
+    this.localStorage.setItem("refreshToken", refresh_token);
+    this.localStorage.setItem("latestIdx", 0);
+    this.localStorage.setItem("timeStamp", 0);
   }
 }
