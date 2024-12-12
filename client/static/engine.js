@@ -71,7 +71,7 @@ export class Engine {
   }
 
   // initialize status from data and storage.
-  setup(data){
+  setup(data, callback){
     this.info = data;
 
     // load from storage
@@ -121,11 +121,12 @@ export class Engine {
 
     this.connectWS(
       this.info.domains[this.info.self_domain_idx],
-      this.info.socket_ports[this.info.self_domain_idx]
+      this.info.socket_ports[this.info.self_domain_idx],
+      callback
     );
   }
 
-  connectWS(host, port) {
+  connectWS(host, port, callback) {
     this.currentHost = host;
     this.currentPort = port;
 
@@ -155,16 +156,18 @@ export class Engine {
       
       this.retransmission.bind(this);
       this.interval_handler = setInterval(this.retransmission.bind(this), 5000);
+
+      if(callback) callback();
     };
 
     this.socket.onmessage = (event) => {
-      console.log("Message from server:", event.data);
       this.numOfRetryConnect = 0;
       if(event.data == "pong"){
         //console.log("pong received");
         this.pingSent = Date.now();
       }
       else {
+        console.log("Message from server:", event.data);
         this.updateState(event.data);
       }
     };
@@ -300,7 +303,6 @@ export class Engine {
       this.msgerInput.value = "";
     }
     
-
     // 2. Send messages from msgHandler.
     let msgArray = this.msgHandler.toJsonArray();
 
@@ -364,6 +366,10 @@ export class Engine {
         );
         deletedFlag = true;
       } else {
+        if(this.enable_dom == false){
+          continue;
+        }
+
         this.appendCommittedMessage(
           msg.user_id,
           utils.genImage(msg.user_id),
