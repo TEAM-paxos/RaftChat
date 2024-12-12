@@ -147,6 +147,8 @@ export class Engine {
       this.serverInfoDiv.innerHTML = "DEST > " + host + ":" + port;
 
       this.msgerBtn.disabled = false;
+      
+      this.retransmission.bind(this);
       this.interval_handler = setInterval(this.retransmission.bind(this), 5000);
     };
 

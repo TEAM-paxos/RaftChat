@@ -61,7 +61,7 @@ export class MsgHandler {
 
     // time out : recovery mode
     this.#sendIndexToServer = 0;
-    this.#msgSize = 1;
+    this.#msgSize = 2;
 
     for (let i = 0; i < this.#msgQue.length; i++) {
       this.#msgSent[i] = false;
