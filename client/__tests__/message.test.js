@@ -1,10 +1,40 @@
 import * as ms from '../static/message.js';
+import * as storage from '../static/storage.js';
+
+class LocalStorageMock {
+  constructor() {
+    this.store = {};
+  }
+
+  clear() {
+    this.store = {};
+  }
+
+  getItem(key) {
+    return this.store[key] || null;
+  }
+
+  setItem(key, value) {
+    this.store[key] = String(value);
+  }
+
+  removeItem(key) {
+    delete this.store[key];
+  }
+}
+
+Object.defineProperty(global, 'localStorage', {
+  value: new LocalStorageMock(),
+});
 
 let msgHandler;
+let _storage;
 
 describe("message test", () => {
   beforeEach(() => {
-    msgHandler = new ms.MsgHandler();
+    _storage = new storage.Storage();
+    _storage.reset();
+    msgHandler = new ms.MsgHandler(_storage);
   });
   
   afterEach(() => {
@@ -14,10 +44,10 @@ describe("message test", () => {
   test('append test', () => {
     
     msgHandler.append("1", "high", "hello~");
-    msgHandler.append("1", "high", "hello~");
+    msgHandler.append("2", "high", "hello~");
 
     let msg1 = new ms.Msg("1", "high", "hello~", 1);
-    let msg2 = new ms.Msg("1", "high", "hello~", 2);
+    let msg2 = new ms.Msg("2", "high", "hello~", 2);
 
     expect(msgHandler.getQue[0].isEqual(msg1)).toEqual(true);
     expect(msgHandler.getQue[1].isEqual(msg2)).toEqual(true);
@@ -70,7 +100,15 @@ describe("message test", () => {
     expect(msgHandler.toJsonArray()).toEqual(
       [
         temp[0].toJson(),
+      ]
+    )
+    expect(msgHandler.toJsonArray()).toEqual(
+      [
         temp[1].toJson(),
+      ]
+    )
+    expect(msgHandler.toJsonArray()).toEqual(
+      [
         temp[2].toJson(),
       ]
     )
