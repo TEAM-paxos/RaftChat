@@ -17,6 +17,10 @@ You can run the system not just from five, but from three, seven, etc... ([quoru
 
 https://hackmd.io/@jFaa8ow5QGS_siogO7YAkg/rk66Hkc-Jl
 
+## Video
+
+[![Video Label](http://img.youtube.com/vi/J0fN5LnW0SI/0.jpg)](https://youtu.be/J0fN5LnW0SI)
+
 ## UI
 ![image](https://github.com/user-attachments/assets/b40ebe99-42a3-4a54-b1ca-59905502ea65)
 
