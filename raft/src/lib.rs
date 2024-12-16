@@ -43,6 +43,7 @@ pub struct RaftConfig {
     pub election_duration: (u64, u64), // lower~upper bound (ms)
     pub heartbeat_duration: Duration,
     pub persistent_state_path: &'static Path,
+    pub persistent_state_backup_path: &'static Path,
     pub wal_path: &'static Path,
 }
 
@@ -101,7 +102,7 @@ pub struct RaftState {
 }
 
 pub struct MyRaftChat {
-    config: RaftConfig,
+    config: Arc<RaftConfig>,
     state: Mutex<RaftState>,
     committed_length_cvar: Condvar,
     propose_cvar: Condvar,
@@ -561,11 +562,17 @@ pub fn run_raft(
 ) {
     let serve_addr = config.serve_addr;
     let persistent_state_path = config.persistent_state_path;
+    let persistent_state_backup_path = config.persistent_state_backup_path;
     let wal_path = config.wal_path;
+    let config = Arc::new(config);
     let raft_chat = Arc::new(MyRaftChat {
-        config: config,
+        config: config.clone(),
         state: Mutex::new(RaftState {
-            persistent_state: PersistentState::new(persistent_state_path),
+            persistent_state: PersistentState::new(
+                &config,
+                persistent_state_path,
+                persistent_state_backup_path,
+            ),
             sm: SMWrapper::new(WAL::new(wal_path)),
             committed_length: 0,
             role: Role::Follower(FollowerState {

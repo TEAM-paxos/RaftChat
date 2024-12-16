@@ -170,6 +170,9 @@ async fn run_tasks(
         election_duration: (3000, 4000), // raft paper: 150ms ~ 300ms
         heartbeat_duration: tokio::time::Duration::from_millis(250),
         persistent_state_path: std::path::Path::new("TODO : path to persistent_state"),
+        persistent_state_backup_path: std::path::Path::new(
+            "TODO : path to persistent_state_backup",
+        ),
         wal_path: std::path::Path::new("TODO : path to wal"),
     };
 
